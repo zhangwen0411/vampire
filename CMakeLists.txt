@@ -813,6 +813,10 @@ else ()
   set(VAMPIRE_BINARY_Z3 "_z3")
 endif()
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  target_link_libraries(vampire PRIVATE ${CMAKE_DL_LIBS})
+endif()
+
 #################################################################
 # automated generation of Vampire revision information from git #
 #################################################################
