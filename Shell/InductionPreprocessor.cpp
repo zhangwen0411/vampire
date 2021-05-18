@@ -363,6 +363,10 @@ void InductionPreprocessor::preprocessProblem(Problem& prb)
 
       vvector<TermList> recursiveCalls;
       processCase(fn, rhs, recursiveCalls);
+      static const bool fnrw = env.options->functionDefinitionRewriting();
+      if (!fnrw) {
+        clause->clearFunctionDefinitions();
+      }
       templIt->second.addBranch(std::move(recursiveCalls), std::move(lhs));
     } else {
       // otherwise we go once again through

@@ -1539,11 +1539,10 @@ Clause* NewCNF::toClause(SPGenClause gc)
     properLiterals.push(make_pair(l,g->isFunctionDefinition()));
   }
 
-  static bool rewriting = env.options->functionDefinitionRewriting();
   Clause* clause = new(gc->size()) Clause(gc->size(),FormulaTransformation(InferenceRule::CLAUSIFY,_beingClausified));
   for (int i = gc->size() - 1; i >= 0; i--) {
     (*clause)[i] = properLiterals[i].first;
-    if (rewriting && properLiterals[i].second) {
+    if (properLiterals[i].second) {
       clause->makeFunctionDefinition((*clause)[i],
         (*clause)[i]->isOrientedReversed());
     }
