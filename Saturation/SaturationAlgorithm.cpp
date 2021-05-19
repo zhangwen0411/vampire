@@ -1457,7 +1457,7 @@ SaturationAlgorithm* SaturationAlgorithm::createFromOptions(Problem& prb, const 
     gie->addFront(new Induction());
 
     if ((opt.induction() == Options::Induction::STRUCTURAL || opt.induction() == Options::Induction::BOTH) &&
-        (opt.structInduction() == Options::StructuralInductionKind::FOUR || opt.structInduction() == Options::StructuralInductionKind::ALL)) {
+        (opt.structInduction() == Options::StructuralInductionKind::REC_DEF || opt.structInduction() == Options::StructuralInductionKind::ALL)) {
       gie->addFront(new GeneralInduction(InferenceRule::INDUCTION_AXIOM));
     }
   }

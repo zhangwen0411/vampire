@@ -1075,7 +1075,7 @@ void Options::init()
             //_induction.setRandomChoices
 
             _structInduction = ChoiceOptionValue<StructuralInductionKind>("structural_induction_kind","sik",
-                                 StructuralInductionKind::FOUR,{"one","two","three","four","all"});
+                                 StructuralInductionKind::REC_DEF,{"one","two","three","rec_def","all"});
             _structInduction.description="The kind of structural induction applied";
             _structInduction.tag(OptionTag::INFERENCES);
             _structInduction.reliesOn(Or(_induction.is(equal(Induction::STRUCTURAL)),_induction.is(equal(Induction::BOTH))));
@@ -1177,7 +1177,7 @@ void Options::init()
                                                          " apart from f with arguments t1,...,tn, consider f with any combination of"
                                                          " subterms s1,...,sn s.t. si is a subterm of ti and is the same sort";
             _inductionExhaustiveGeneration.tag(OptionTag::INFERENCES);
-            _inductionExhaustiveGeneration.reliesOn(_structInduction.is(equal(StructuralInductionKind::FOUR)));
+            _inductionExhaustiveGeneration.reliesOn(_structInduction.is(equal(StructuralInductionKind::REC_DEF)));
             _lookup.insert(&_inductionExhaustiveGeneration);
 
             _functionDefinitionDiscovery = BoolOptionValue("function_definition_discovery","fnd",false);

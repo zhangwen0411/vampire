@@ -235,7 +235,7 @@ public:
     ONE,
     TWO,
     THREE,
-    FOUR,
+    REC_DEF,
     ALL
   };
   enum class MathInductionKind : unsigned int {
