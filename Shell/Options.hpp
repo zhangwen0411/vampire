@@ -2046,6 +2046,11 @@ public:
   
   // end of show commands
 
+  // deepire options
+  bool showForKarel() const { return _showForKarel.actualValue; }
+  bool evalForKarel() const { return (!_evalForKarel.actualValue.empty()); }
+  vstring evalForKarelPath() const { return _evalForKarel.actualValue; }
+
   bool showNonconstantSkolemFunctionTrace() const { return _showNonconstantSkolemFunctionTrace.actualValue; }
   void setShowNonconstantSkolemFunctionTrace(bool newVal) { _showNonconstantSkolemFunctionTrace.actualValue = newVal; }
   InterpolantMode showInterpolant() const { return _showInterpolant.actualValue; }
@@ -2621,6 +2626,8 @@ private:
   BoolOptionValue _showDefinitions;
   ChoiceOptionValue<InterpolantMode> _showInterpolant;
   BoolOptionValue _showNew;
+  BoolOptionValue _showForKarel;
+  StringOptionValue _evalForKarel;
   BoolOptionValue _sineToAge;
   ChoiceOptionValue<PredicateSineLevels> _sineToPredLevels;
   BoolOptionValue _showSplitting;
