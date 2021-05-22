@@ -205,6 +205,11 @@ public:
   }
   Clause* getComponentClause(SplitLevel name) const;
 
+  Clause* getCausalParent(Clause* compCl) const {
+    ASS(compCl->isComponent());
+    return _causalParents.get(compCl);
+  }
+
   SplitLevel splitLevelCnt() const { return _db.size(); }
   unsigned maxSatVar() const { return _sat2fo.maxSATVar(); }
 
@@ -273,6 +278,8 @@ private:
    */
   Stack<SplitRecord*> _db;
   DHMap<Clause*,SplitLevel> _compNames;
+
+  DHMap<Clause*,Clause*> _causalParents;
 
   /**
    * Definitions of ground components C and ~C are shared and placed at the slot of C.
