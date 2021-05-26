@@ -200,10 +200,9 @@ Term* TermTransformer::transformSpecial(Term* term)
     case Term::SF_MATCH: {
       DArray<TermList> terms(term->arity());
       bool unchanged = true;
-      for (unsigned int i = 0; i < term->arity(); i++) {
-        TermList subterm = transform(*term->nthArgument(i));
-        unchanged = unchanged && (subterm == *term->nthArgument(i));
-        terms[i] = subterm;
+      for (unsigned i = 0; i < term->arity(); i++) {
+        terms[i] = transform(*term->nthArgument(i));
+        unchanged = unchanged && (terms[i] == *term->nthArgument(i));
       }
 
       if (unchanged) {
@@ -213,7 +212,7 @@ Term* TermTransformer::transformSpecial(Term* term)
     }
 
   }
-  ASSERTION_VIOLATION_REP(term->toString());
+  ASSERTION_VIOLATION_REP(term->toString()); 
   return nullptr;
 }
 

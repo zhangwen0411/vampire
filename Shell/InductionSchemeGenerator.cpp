@@ -167,7 +167,7 @@ bool InductionScheme::finalize()
         _maxVar = max(_maxVar, (unsigned)fv->head());
         fv = fv->tail();
       }
-      Formula::VarList::destroy(fv);
+      VList::destroy(fv);
     }
     for (const auto& rc : c._recursiveCalls) {
       for (const auto& kv : rc) {
@@ -177,7 +177,7 @@ bool InductionScheme::finalize()
           _maxVar = max(_maxVar, (unsigned)fv->head());
           fv = fv->tail();
         }
-        Formula::VarList::destroy(fv);
+        VList::destroy(fv);
       }
     }
   }
@@ -265,7 +265,7 @@ void InductionScheme::addBaseCases() {
 
 TermList InductionScheme::createRepresentingTerm(const vset<TermList>& inductionTerms, const vmap<TermList,TermList>& r, unsigned& var)
 {
-  Stack<unsigned> argSorts;
+  Stack<TermList> argSorts;
   Stack<TermList> args;
   for (const auto& indTerm : inductionTerms) {
     auto fn = env.signature->getFunction(indTerm.term()->functor())->fnType();
@@ -277,11 +277,11 @@ TermList InductionScheme::createRepresentingTerm(const vset<TermList>& induction
       args.push(it->second);
     }
   }
-  static DHMap<Stack<unsigned>,unsigned> symbols;
+  static DHMap<Stack<TermList>,unsigned> symbols;
   if (!symbols.find(argSorts)) {
     unsigned sym = env.signature->addFreshFunction(argSorts.size(), "indhelper");
     env.signature->getFunction(sym)->setType(
-      OperatorType::getFunctionType(argSorts.size(), argSorts.begin(), 0));
+      OperatorType::getFunctionType(argSorts.size(), argSorts.begin(), Term::defaultSort()));
     symbols.insert(argSorts, sym);
   }
 
@@ -596,11 +596,11 @@ void StructuralInductionSchemeGenerator::generate(
   static bool structInd = env.options->induction() == Options::Induction::BOTH ||
                          env.options->induction() == Options::Induction::STRUCTURAL;
   static bool mathInd = env.options->induction() == Options::Induction::BOTH ||
-                         env.options->induction() == Options::Induction::MATHEMATICAL;
+                         env.options->induction() == Options::Induction::INTEGER;
   static bool complexTermsAllowed = env.options->inductionOnComplexTerms();
 
   Set<Term*> ta_terms;
-  Set<Term*> int_terms;
+  // Set<Term*> int_terms;
   SubtermIterator it(main.literal);
   while(it.hasNext()){
     TermList ts = it.next();
@@ -619,12 +619,12 @@ void StructuralInductionSchemeGenerator::generate(
         ){
         ta_terms.insert(ts.term());
       }
-      if(mathInd &&
-          env.signature->getFunction(f)->fnType()->result()==Sorts::SRT_INTEGER &&
-          !theory->isInterpretedConstant(f)
-        ){
-        int_terms.insert(ts.term());
-      }
+      // if(mathInd &&
+      //     env.signature->getFunction(f)->fnType()->result()==Sorts::SRT_INTEGER &&
+      //     !theory->isInterpretedConstant(f)
+      //   ){
+      //   int_terms.insert(ts.term());
+      // }
     }
     auto p = make_pair(main.literal, ts);
     auto oIt = occMap.find(p);
@@ -674,7 +674,7 @@ InductionScheme StructuralInductionSchemeGenerator::generateStructural(Term* ter
   CALL("StructuralInductionSchemeGenerator::generateStructural");
 
   TermAlgebra* ta = env.signature->getTermAlgebraOfSort(env.signature->getFunction(term->functor())->fnType()->result());
-  unsigned ta_sort = ta->sort();
+  TermList ta_sort = ta->sort();
   unsigned var = 0;
   InductionScheme scheme;
 

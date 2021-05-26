@@ -327,7 +327,7 @@ void GeneralInduction::generateClauses(
 }
 
 void mapVarsToSkolems(vmap<TermList, TermList>& varToSkolemMap, pair<TermList, TermList> kv) {
-  DHMap<unsigned,unsigned> varSorts;
+  DHMap<unsigned,TermList> varSorts;
   auto sort = SortHelper::getResultSort(kv.first.term());
   SortHelper::collectVariableSorts(kv.second,sort,varSorts);
 
@@ -339,7 +339,7 @@ void mapVarsToSkolems(vmap<TermList, TermList>& varToSkolemMap, pair<TermList, T
       continue;
     }
 
-    auto skFun = Skolem::addSkolemFunction(0,nullptr,v.second);
+    auto skFun = Skolem::addSkolemFunction(0,0,nullptr,v.second);
     varToSkolemMap.insert(make_pair(var, Term::create(skFun, 0, nullptr)));
   }
 }
@@ -358,12 +358,12 @@ vmap<TermList, TermList> GeneralInduction::skolemizeCase(const InductionScheme::
   return varToSkolemMap;
 }
 
-vmap<TermList, TermList> createBlanksForScheme(const InductionScheme& sch, DHMap<pair<unsigned,unsigned>,TermList>& blanks)
+vmap<TermList, TermList> createBlanksForScheme(const InductionScheme& sch, DHMap<pair<TermList, unsigned>, TermList>& blanks)
 {
-  vmap<unsigned,unsigned> srts;
+  vmap<TermList, unsigned> srts;
   vmap<TermList, TermList> replacements;
   for (const auto& t : sch.inductionTerms()) {
-    unsigned srt = env.signature->getFunction(t.term()->functor())->fnType()->result();
+    TermList srt = env.signature->getFunction(t.term()->functor())->fnType()->result();
     auto it = srts.find(srt);
     if (it == srts.end()) {
       it = srts.insert(make_pair(srt,0)).first;
@@ -387,7 +387,7 @@ bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Cl
 {
   CALL("GeneralInduction::alreadyDone");
 
-  static DHMap<pair<unsigned,unsigned>,TermList> blanks;
+  static DHMap<pair<TermList, unsigned>, TermList> blanks;
   auto replacements = createBlanksForScheme(sch, blanks);
 
   TermReplacement cr(replacements);

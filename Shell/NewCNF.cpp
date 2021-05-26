@@ -23,6 +23,7 @@
 #include "Kernel/SortHelper.hpp"
 #include "Kernel/Substitution.hpp"
 #include "Kernel/TermIterators.hpp"
+#include "Kernel/FormulaVarIterator.hpp"
 #include "Shell/Flattening.hpp"
 #include "Shell/Skolem.hpp"
 #include "Shell/Options.hpp"
@@ -151,8 +152,8 @@ void NewCNF::process(Literal* literal, bool functionDefinition, Occurrences &occ
   Stack<TermList> arguments;
   Term::Iterator ait(literal);
   while (ait.hasNext()) {
-    arguments.push(findITEs(ait.next(), variables, conditions, thenBranches, elseBranches,
-                            matchVariables, matchConditions, matchBranches));
+    arguments.push(findITEs(ait.next(), variables, conditions, thenBranches,
+      elseBranches, matchVariables, matchConditions, matchBranches));
   }
   Literal* processedLiteral = Literal::create(literal, arguments.begin());
 
@@ -199,12 +200,12 @@ void NewCNF::process(Literal* literal, bool functionDefinition, Occurrences &occ
         List<LPair>::push(elsePair, processedLiterals);
       }
     } else {
-      IntList::Iterator branchesFreeVars(IntList::append(thenBranch.freeVariables(),
-                                                         elseBranch.freeVariables()));
-      VarSet* fv = (VarSet*) freeVars(condition)->getUnion(VarSet::getFromIterator(branchesFreeVars));
+      VarSet* fv = freeVars(condition);
+      fv = fv->getUnion(VarSet::getFromIterator(FormulaVarIterator(&thenBranch)));
+      fv = fv->getUnion(VarSet::getFromIterator(FormulaVarIterator(&elseBranch)));
 
-      List<unsigned>* vars = new List<unsigned>(variable);
-      List<unsigned>::pushFromIterator(VarSet::Iterator(*fv), vars);
+      VList* vars = VList::singleton(variable);
+      VList::pushFromIterator(VarSet::Iterator(*fv), vars);
 
       /* TODO: createNamingLiteral needs a formula to mark the colors correctly.
        * I'm not sure if it is the condition that should go here, but let's have that for now.
@@ -279,6 +280,50 @@ void NewCNF::process(Literal* literal, bool functionDefinition, Occurrences &occ
   ASS(thenBranches.isEmpty());
   ASS(elseBranches.isEmpty());
 
+  LOG4("Found", matchVariables.size(), "variable(s) for matches inside", literal->toString());
+  LOG3("Replacing it by", processedLiteral->toString(), "with variable substitutions");
+
+  while (matchVariables.isNonEmpty()) {
+    unsigned matchVar = matchVariables.pop();
+    List<Formula *> *conditions = matchConditions.pop();
+    List<TermList> *branches = matchBranches.pop();
+
+    List<LPair> *processedLiterals(0);
+
+    List<Formula *>::Iterator condIt(conditions);
+    List<TermList>::Iterator branchIt(branches);
+
+    while (List<LPair>::isNonEmpty(literals)) {
+      LPair p = List<LPair>::pop(literals);
+      Literal *literal = p.first;
+      List<GenLit> *gls = p.second;
+
+      while (condIt.hasNext()) {
+        ASS(branchIt.hasNext());
+
+        auto condition = condIt.next();
+        auto branch = branchIt.next();
+        enqueue(condition);
+
+        GenLit negCondition = GenLit(condition, NEGATIVE);
+
+        Substitution subst;
+        subst.bind(matchVar, branch);
+
+        Literal *branchLiteral = SubstHelper::apply(literal, subst);
+
+        List<LPair>::push(make_pair(
+                              branchLiteral, List<GenLit>::cons(negCondition, gls)),
+                          processedLiterals);
+      }
+    }
+    literals = processedLiterals;
+  }
+
+  ASS(matchVariables.isEmpty());
+  ASS(matchConditions.isEmpty());
+  ASS(matchBranches.isEmpty());
+
   while (occurrences.isNonEmpty()) {
     Occurrence occ = pop(occurrences);
 
@@ -314,8 +359,8 @@ TermList NewCNF::findITEs(TermList ts, Stack<unsigned> &variables, Stack<Formula
 
     Term::Iterator it(term);
     while (it.hasNext()) {
-      arguments.push(findITEs(it.next(), variables, conditions, thenBranches, elseBranches,
-                              matchVariables, matchConditions, matchBranches));
+      arguments.push(findITEs(it.next(), variables, conditions, thenBranches,
+        elseBranches, matchVariables, matchConditions, matchBranches));
     }
 
     unsigned proj;
@@ -329,12 +374,12 @@ TermList NewCNF::findITEs(TermList ts, Stack<unsigned> &variables, Stack<Formula
     return TermList(Term::create(term, arguments.begin()));
   }
 
-  unsigned sort;
+  TermList sort;
 
   Term::SpecialTermData* sd = term->getSpecialData();
   switch (sd->getType()) {
     case Term::SF_FORMULA: {
-      sort = Sorts::SRT_BOOL;
+      sort = Term::boolSort();
       conditions.push(sd->getFormula());
       thenBranches.push(TermList(Term::foolTrue()));
       elseBranches.push(TermList(Term::foolFalse()));
@@ -353,27 +398,29 @@ TermList NewCNF::findITEs(TermList ts, Stack<unsigned> &variables, Stack<Formula
     case Term::SF_LET_TUPLE: {
       TermList contents = *term->nthArgument(0);
       TermList processedLet = eliminateLet(sd, contents);
-      return findITEs(processedLet, variables, conditions, thenBranches, elseBranches,
-                      matchVariables, matchConditions, matchBranches);
+      return findITEs(processedLet, variables, conditions, thenBranches,
+        elseBranches, matchVariables, matchConditions, matchBranches);
     }
 
     case Term::SF_TUPLE: {
       TermList tupleTerm = TermList(sd->getTupleTerm());
-      return findITEs(tupleTerm, variables, conditions, thenBranches, elseBranches,
-                      matchVariables, matchConditions, matchBranches);
+      return findITEs(tupleTerm, variables, conditions, thenBranches,
+                      elseBranches, matchVariables, matchConditions, matchBranches);
     }
 
     case Term::SF_MATCH: {
       sort = sd->getSort();
       auto matched = *term->nthArgument(0);
-      List<Formula*>* mconditions(0);
-      List<TermList>* mbranches(0);
-      for (unsigned int i = 1; i < term->arity(); i+=2) {
+      List<Formula *> *mconditions(0);
+      List<TermList> *mbranches(0);
+      // for each case (p, t) with matched term m,
+      // we create a condition m=p and a branch t
+      for (unsigned int i = 1; i < term->arity(); i += 2) {
         auto pattern = *term->nthArgument(i);
-        auto body = *term->nthArgument(i+1);
-        Formula* condition = new AtomicFormula(
-          Literal::createEquality(POSITIVE, matched, pattern, sd->getMatchedSort()));
-        List<Formula*>::push(condition, mconditions);
+        auto body = *term->nthArgument(i + 1);
+        Formula *condition = new AtomicFormula(
+            Literal::createEquality(POSITIVE, matched, pattern, sd->getMatchedSort()));
+        List<Formula *>::push(condition, mconditions);
         List<TermList>::push(body, mbranches);
       }
       matchConditions.push(mconditions);
@@ -399,7 +446,7 @@ bool NewCNF::shouldInlineITE(unsigned iteCounter) {
   return iteCounter < _iteInliningThreshold;
 }
 
-unsigned NewCNF::createFreshVariable(unsigned sort)
+unsigned NewCNF::createFreshVariable(TermList sort)
 {
   CALL("NewCNF::createFreshVariable");
 
@@ -418,7 +465,7 @@ void NewCNF::createFreshVariableRenaming(unsigned oldVar, unsigned freshVar)
 
   ensureHavingVarSorts();
 
-  unsigned sort;
+  TermList sort;
   ALWAYS(_varSorts.find(oldVar, sort));
   if (!_varSorts.insert(freshVar, sort)) {
     ASSERTION_VIOLATION_REP(freshVar);
@@ -635,16 +682,16 @@ void NewCNF::processITE(Formula* condition, Formula* thenBranch, Formula* elseBr
   }
 }
 
-void NewCNF::processMatch(Term::SpecialTermData* sd, Term* term, Occurrences &occurrences)
+void NewCNF::processMatch(Term::SpecialTermData *sd, Term *term, Occurrences &occurrences)
 {
   CALL("NewCNF::processMatch");
   auto matched = *term->nthArgument(0);
 
-  for (unsigned int i = 1; i < term->arity(); i+=2) {
+  for (unsigned int i = 1; i < term->arity(); i += 2) {
     auto pattern = *term->nthArgument(i);
-    auto body = *term->nthArgument(i+1);
-    Formula* condition = new AtomicFormula(
-      Literal::createEquality(POSITIVE, matched, pattern, sd->getMatchedSort()));
+    auto body = *term->nthArgument(i + 1);
+    Formula *condition = new AtomicFormula(
+        Literal::createEquality(POSITIVE, matched, pattern, sd->getMatchedSort()));
     auto branch = BoolTermFormula::create(body);
 
     enqueue(condition);
@@ -656,7 +703,9 @@ void NewCNF::processMatch(Term::SpecialTermData* sd, Term* term, Occurrences &oc
       introduceExtendedGenClause(occ, GenLit(condition, NEGATIVE), GenLit(branch, occ.sign()));
     }
   }
-  while (occurrences.isNonEmpty()) { pop(occurrences); }
+  while (occurrences.isNonEmpty()) {
+    pop(occurrences);
+  }
 }
 
 TermList NewCNF::eliminateLet(Term::SpecialTermData *sd, TermList contents)
@@ -666,7 +715,7 @@ TermList NewCNF::eliminateLet(Term::SpecialTermData *sd, TermList contents)
   ASS((sd->getType() == Term::SF_LET) || (sd->getType() == Term::SF_LET_TUPLE));
 
   unsigned symbol;
-  Formula::VarList* variables;
+  VList* variables;
   TermList binding = sd->getBinding();
 
   if (sd->getType() == Term::SF_LET) {
@@ -676,14 +725,14 @@ TermList NewCNF::eliminateLet(Term::SpecialTermData *sd, TermList contents)
     // binding of the form $let([x, y, z] := [a, b, c], ...) is processed
     // as $let(x := a, $let(y := b, $let(z := c, ...)))
     unsigned tupleFunctor = sd->getFunctor();
-    IntList* symbols = sd->getTupleSymbols();
-    unsigned bodySort = sd->getSort();
+    VList* symbols = sd->getTupleSymbols();
+    TermList bodySort = sd->getSort();
 
     OperatorType* tupleType = env.signature->getFunction(tupleFunctor)->fnType();
 
     Term* bindingTuple = binding.term()->getSpecialData()->getTupleTerm();
-    unsigned arity = IntList::length(symbols);
-    IntList::Iterator sit(symbols);
+    unsigned arity = VList::length(symbols);
+    VList::Iterator sit(symbols);
     Term::Iterator bit(bindingTuple);
 
     TermList processedContents = contents;
@@ -691,13 +740,13 @@ TermList NewCNF::eliminateLet(Term::SpecialTermData *sd, TermList contents)
     for (unsigned i = 0; i < arity - 1; i++) {
       ASS(bit.hasNext());
       ASS(sit.hasNext());
-      Term* nestedLet = Term::createLet((unsigned)sit.next(), 0, bit.next(), processedContents, bodySort);
+      Term* nestedLet = Term::createLet(sit.next(), 0, bit.next(), processedContents, bodySort);
       processedContents = TermList(nestedLet);
     }
     ASS(bit.hasNext());
     ASS(sit.hasNext());
     processedBinding = bit.next();
-    symbol = (unsigned)sit.next();
+    symbol = sit.next();
     ASS(!sit.hasNext());
     ASS(!bit.hasNext());
 
@@ -710,18 +759,18 @@ TermList NewCNF::eliminateLet(Term::SpecialTermData *sd, TermList contents)
       env.endOutput();
     }
 
-    variables = 0;
+    variables = VList::empty();
     contents = processedContents;
     binding = processedBinding;
   } else {
     unsigned tupleFunctor = sd->getFunctor();
-    IntList* symbols = sd->getTupleSymbols();
-    unsigned bodySort = sd->getSort();
+    VList* symbols = sd->getTupleSymbols();
+    TermList bodySort = sd->getSort();
 
     OperatorType* tupleType = env.signature->getFunction(tupleFunctor)->fnType();
-    unsigned tupleSort = tupleType->result();
+    TermList tupleSort = tupleType->result();
 
-    ASS_EQ(tupleType->arity(), IntList::length(symbols));
+    ASS_EQ(tupleType->arity(), VList::length(symbols));
 
     unsigned tuple = env.signature->addFreshFunction(0, "tuple");
     env.signature->getFunction(tuple)->setType(OperatorType::getConstantsType(tupleSort));
@@ -731,8 +780,8 @@ TermList NewCNF::eliminateLet(Term::SpecialTermData *sd, TermList contents)
     TermList detupledContents = contents;
 
     for (unsigned proj = 0; proj < tupleType->arity(); proj++) {
-      unsigned symbol = (unsigned) IntList::nth(symbols, proj);
-      bool isPredicate = tupleType->arg(proj) == Sorts::SRT_BOOL;
+      unsigned symbol = VList::nth(symbols, proj);
+      bool isPredicate = tupleType->arg(proj) == Term::boolSort();
 
       unsigned projFunctor = Theory::tuples()->getProjectionFunctor(proj, tupleSort);
       Term* projectedArgument;
@@ -756,7 +805,7 @@ TermList NewCNF::eliminateLet(Term::SpecialTermData *sd, TermList contents)
     }
 
     symbol = tuple;
-    variables = 0;
+    variables = VList::empty();
     contents = detupledContents;
   }
 
@@ -826,40 +875,40 @@ void NewCNF::processLet(Term::SpecialTermData* sd, TermList contents, Occurrence
   enqueue(deletedContentsFormula, occurrences);
 }
 
-TermList NewCNF::nameLetBinding(unsigned symbol, Formula::VarList* bindingVariables, TermList binding, TermList contents)
+TermList NewCNF::nameLetBinding(unsigned symbol, VList* bindingVariables, TermList binding, TermList contents)
 {
   CALL("NewCNF::nameLetBinding");
 
-  Formula::VarList* bindingFreeVars(0);
-  Formula::VarList::Iterator bfvi(binding.freeVariables());
+  VList* bindingFreeVars = VList::empty();
+  FormulaVarIterator bfvi(&binding);
   while (bfvi.hasNext()) {
-    int var = bfvi.next();
-    if (!Formula::VarList::member(var, bindingVariables)) {
-      bindingFreeVars = new Formula::VarList(var, bindingFreeVars);
+    unsigned var = bfvi.next();
+    if (!VList::member(var, bindingVariables)) {
+      VList::push(var,bindingFreeVars);
     }
   }
 
   bool isPredicate = binding.isTerm() && binding.term()->isBoolean();
 
-  unsigned nameArity = Formula::VarList::length(bindingVariables) + Formula::VarList::length(bindingFreeVars);
-  unsigned nameSort;
+  unsigned nameArity = VList::length(bindingVariables) + VList::length(bindingFreeVars);
+  TermList nameSort;
   if (!isPredicate) {
     nameSort = env.signature->getFunction(symbol)->fnType()->result();
   }
 
   unsigned freshSymbol = symbol;
 
-  bool renameSymbol = Formula::VarList::isNonEmpty(bindingFreeVars);
+  bool renameSymbol = VList::isNonEmpty(bindingFreeVars);
   if (renameSymbol) {
-    static Stack<unsigned> sorts;
+    static Stack<TermList> sorts;
     sorts.reset();
 
     ensureHavingVarSorts();
 
-    IntList::Iterator vit(bindingFreeVars);
+    VList::Iterator vit(bindingFreeVars);
     while (vit.hasNext()) {
-      unsigned var = (unsigned) vit.next();
-      sorts.push(_varSorts.get(var, Sorts::SRT_DEFAULT));
+      unsigned var = vit.next();
+      sorts.push(_varSorts.get(var, Term::defaultSort()));
     }
 
     if (isPredicate) {
@@ -873,17 +922,24 @@ TermList NewCNF::nameLetBinding(unsigned symbol, Formula::VarList* bindingVariab
     }
   }
 
-  Formula::VarList* variables = Formula::VarList::append(bindingFreeVars,bindingVariables);
 
   Stack<TermList> arguments;
-  Formula::VarList::Iterator vit(variables);
-  while (vit.hasNext()) {
-    unsigned var = (unsigned)vit.next();
+  VList::Iterator bfvit(bindingFreeVars);
+  while (bfvit.hasNext()) {
+    unsigned var = bfvit.next();
+    arguments.push(TermList(var, false));
+  }
+  VList::Iterator vbit(bindingVariables);
+  while (vbit.hasNext()) {
+    unsigned var = vbit.next();
     arguments.push(TermList(var, false));
   }
 
+  Term* freshApplication;
+
   if (isPredicate) {
     Literal* name = Literal::create(freshSymbol, nameArity, POSITIVE, false, arguments.begin());
+    freshApplication = name;
     Formula* nameFormula = new AtomicFormula(name);
 
     Formula* formulaBinding = BoolTermFormula::create(binding);
@@ -894,22 +950,24 @@ TermList NewCNF::nameLetBinding(unsigned symbol, Formula::VarList* bindingVariab
     }
   } else {
     TermList name = TermList(Term::create(freshSymbol, nameArity, arguments.begin()));
+    freshApplication = name.term();
     Formula* nameFormula = new AtomicFormula(Literal::createEquality(POSITIVE, name, binding, nameSort));
 
     enqueue(nameFormula);
 
     introduceGenClause(GenLit(nameFormula, POSITIVE));
   }
-
+  
   if (renameSymbol) {
-    SymbolOccurrenceReplacement replacement(isPredicate, symbol, freshSymbol, bindingFreeVars);
+    SymbolOccurrenceReplacement replacement(isPredicate, freshApplication, symbol, bindingVariables);
     return replacement.process(contents);
   }
+
 
   return contents;
 }
 
-TermList NewCNF::inlineLetBinding(unsigned symbol, Formula::VarList* bindingVariables, TermList binding, TermList contents) {
+TermList NewCNF::inlineLetBinding(unsigned symbol, VList* bindingVariables, TermList binding, TermList contents) {
   CALL("NewCNF::inlineLetBinding(TermList)");
 
   ensureHavingVarSorts();
@@ -937,8 +995,7 @@ VarSet* NewCNF::freeVars(Formula* g)
     return res;
   }
 
-  Formula::VarList::Iterator fv(g->freeVariables());
-  res = (VarSet*) VarSet::getFromIterator(fv);
+  res = (VarSet*)VarSet::getFromIterator(FormulaVarIterator(g));
 
   _freeVars.insert(g,res);
   return res;
@@ -969,8 +1026,8 @@ Term* NewCNF::createSkolemTerm(unsigned var, VarSet* free)
   unsigned arity = free->size();
 
   ensureHavingVarSorts();
-  unsigned rangeSort=_varSorts.get(var, Sorts::SRT_DEFAULT);
-  static Stack<unsigned> domainSorts;
+  TermList rangeSort=_varSorts.get(var, Term::defaultSort());
+  static Stack<TermList> domainSorts;
   static Stack<TermList> fnArgs;
   ASS(domainSorts.isEmpty());
   ASS(fnArgs.isEmpty());
@@ -978,12 +1035,12 @@ Term* NewCNF::createSkolemTerm(unsigned var, VarSet* free)
   VarSet::Iterator vit(*free);
   while(vit.hasNext()) {
     unsigned uvar = vit.next();
-    domainSorts.push(_varSorts.get(uvar, Sorts::SRT_DEFAULT));
+    domainSorts.push(_varSorts.get(uvar, Term::defaultSort()));
     fnArgs.push(TermList(uvar, false));
   }
 
   Term* res;
-  bool isPredicate = (rangeSort == Sorts::SRT_BOOL);
+  bool isPredicate = (rangeSort == Term::boolSort());
   if (isPredicate) {
     unsigned pred = Skolem::addSkolemPredicate(arity, domainSorts.begin(), var);
     if(_beingClausified->derivedFromGoal()){
@@ -1064,9 +1121,9 @@ void NewCNF::skolemise(QuantifiedFormula* g, BindingList*& bindings, BindingList
       processedBindings = nullptr;
       processedFoolBindings = nullptr;
 
-      Formula::VarList::Iterator vs(g->vars());
+      VList::Iterator vs(g->vars());
       while (vs.hasNext()) {
-        unsigned var = (unsigned)vs.next();
+        unsigned var = vs.next();
         Term* skolem = createSkolemTerm(var, unboundFreeVars);
 
         env.statistics->skolemFunctions++;
@@ -1184,9 +1241,10 @@ void NewCNF::processBoolterm(TermList ts, Occurrences &occurrences)
       processLet(sd, *term->nthArgument(0), occurrences);
       break;
 
-    case Term::SF_MATCH:
+    case Term::SF_MATCH: {
       processMatch(sd, term, occurrences);
       break;
+    }
 
     default:
       ASSERTION_VIOLATION_REP(term->toString());
@@ -1196,11 +1254,11 @@ void NewCNF::processBoolterm(TermList ts, Occurrences &occurrences)
 /**
  * Stolen from Naming::getDefinitionLiteral
  */
-Literal* NewCNF::createNamingLiteral(Formula* f, List<unsigned>* free)
+Literal* NewCNF::createNamingLiteral(Formula* f, VList* free)
 {
   CALL("NewCNF::createNamingLiteral");
 
-  unsigned length = List<unsigned>::length(free);
+  unsigned length = VList::length(free);
   unsigned pred = env.signature->addNamePredicate(length);
   Signature::Symbol* predSym = env.signature->getPredicate(pred);
 
@@ -1214,17 +1272,17 @@ Literal* NewCNF::createNamingLiteral(Formula* f, List<unsigned>* free)
     }
   }
 
-  static Stack<unsigned> domainSorts;
+  static Stack<TermList> domainSorts;
   static Stack<TermList> predArgs;
   domainSorts.reset();
   predArgs.reset();
 
   ensureHavingVarSorts();
 
-  List<unsigned>::Iterator vit(free);
+  VList::DestructiveIterator vit(free);
   while (vit.hasNext()) {
     unsigned uvar = vit.next();
-    domainSorts.push(_varSorts.get(uvar, Sorts::SRT_DEFAULT));
+    domainSorts.push(_varSorts.get(uvar, Term::defaultSort()));
     predArgs.push(TermList(uvar, false));
   }
 
@@ -1248,8 +1306,8 @@ void NewCNF::nameSubformula(Formula* g, Occurrences &occurrences)
   LOG2("nameSubformula", g->toString());
   LOG2("occurrences", occurrences.size());
 
-  List<unsigned>* fv = List<unsigned>::empty();
-  List<unsigned>::pushFromIterator(VarSet::Iterator(*freeVars(g)), fv);
+  VList* fv = VList::empty();
+  VList::pushFromIterator(VarSet::Iterator(*freeVars(g)), fv);
 
   Literal* naming = createNamingLiteral(g, fv);
   Formula* name = new AtomicFormula(naming);
@@ -1371,7 +1429,7 @@ void NewCNF::toClauses(SPGenClause gc, Stack<Clause*>& output)
         List<GenLit>::Iterator glsit(gls);
         while (glsit.hasNext()) {
           GenLit gl = glsit.next();
-          if (Formula::VarList::member(variable, formula(gl)->freeVariables())) {
+          if (formula(gl)->isFreeVariable(variable)) {
             occurs = true;
             break;
           }
@@ -1395,8 +1453,8 @@ void NewCNF::toClauses(SPGenClause gc, Stack<Clause*>& output)
         }
       }
     } else {
-      List<unsigned>* vars = new List<unsigned>(variable);
-      List<unsigned>::pushFromIterator(Formula::VarList::Iterator(skolem->freeVariables()), vars);
+      VList* vars = VList::singleton(variable);
+      VList::pushFromIterator(FormulaVarIterator(skolem), vars);
       Formula* naming = new AtomicFormula(createNamingLiteral(skolem, vars));
 
       Substitution skolemSubst;
@@ -1413,7 +1471,7 @@ void NewCNF::toClauses(SPGenClause gc, Stack<Clause*>& output)
         List<GenLit>::Iterator glsit(gls);
         while (glsit.hasNext()) {
           GenLit gl = glsit.next();
-          if (Formula::VarList::member(variable, formula(gl)->freeVariables())) {
+          if (formula(gl)->isFreeVariable(variable)) {
             occurs = true;
             break;
           }
