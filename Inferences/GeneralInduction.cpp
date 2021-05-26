@@ -159,10 +159,10 @@ void GeneralInduction::detach()
 Literal* replaceLit(const vmap<TermList,TermList>& r, const OccurrenceMap& occurrences, Literal* lit, const vset<pair<Literal*,Clause*>>& sideLits,
   const vmap<TermList,TermList>& v2sk, const vvector<LiteralStack>& lits, vvector<LiteralStack>& newLits, bool hypothesis = false)
 {
-  TermOccurrenceReplacement2 tr(r, occurrences, lit);
+  TermOccurrenceReplacement tr(r, occurrences, lit);
   auto newLit = tr.transform(lit);
   if (newLit != lit) {
-    TermReplacement2 tr2(v2sk);
+    TermReplacement tr2(v2sk);
     newLit = tr2.transform(newLit);
     if (hypothesis) {
       newLit = Literal::complementaryLiteral(newLit);
@@ -171,10 +171,10 @@ Literal* replaceLit(const vmap<TermList,TermList>& r, const OccurrenceMap& occur
       st.push(newLit);
       if (hypothesis) {
         for (const auto& kv : sideLits) {
-          TermOccurrenceReplacement2 trs(r, occurrences, kv.first);
+          TermOccurrenceReplacement trs(r, occurrences, kv.first);
           auto newLitS = trs.transform(kv.first);
           if (newLitS != kv.first) {
-            TermReplacement2 trs2(v2sk);
+            TermReplacement trs2(v2sk);
             newLitS = Literal::complementaryLiteral(trs2.transform(newLitS));
             st.push(newLitS);
           }
@@ -244,7 +244,7 @@ void GeneralInduction::generateClauses(
     }
   }
   vvector<pair<Literal*, SLQueryResult>> conclusionToLitMap;
-  TermOccurrenceReplacement2 tr(r, occurrences, mainLit.literal);
+  TermOccurrenceReplacement tr(r, occurrences, mainLit.literal);
   auto newMainLit = tr.transform(mainLit.literal);
   ASS(mainLit.literal != newMainLit);
   newMainLit = Literal::complementaryLiteral(newMainLit);
@@ -254,7 +254,7 @@ void GeneralInduction::generateClauses(
   conclusionToLitMap.push_back(make_pair(newMainLit, mainLit));
 
   for (const auto& kv : sideLits) {
-    TermOccurrenceReplacement2 tr(r, occurrences, kv.first);
+    TermOccurrenceReplacement tr(r, occurrences, kv.first);
     auto newLit = tr.transform(kv.first);
     if (kv.first != newLit) {
       newLit = Literal::complementaryLiteral(newLit);
@@ -392,7 +392,7 @@ bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Cl
   static DHMap<pair<unsigned,unsigned>,TermList> blanks;
   auto replacements = createBlanksForScheme(sch, blanks);
 
-  TermReplacement2 cr(replacements);
+  TermReplacement cr(replacements);
   res.first = cr.transform(mainLit);
 
   for (const auto& kv : sides) {

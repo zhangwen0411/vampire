@@ -148,39 +148,14 @@ bool InductionSchemeFilter::mergeSchemes(const InductionScheme& sch1, const Indu
   return true;
 }
 
-void InductionSchemeFilter::filter(vvector<InductionScheme>& primary, vvector<InductionScheme>& secondary)
-{
-  CALL("InductionSchemeGenerator::filter");
-
-  filter(primary);
-  filter(secondary);
-
-  // merge secondary schemes into primary ones if possible, remove the rest
-  for (unsigned i = 0; i < secondary.size(); i++) {
-    for (unsigned j = 0; j < primary.size(); j++) {
-      auto& p = primary[j];
-      auto& s = secondary[i];
-
-      if (!beforeMergeCheck(p, s)) {
-        continue;
-      }
-
-      InductionScheme merged;
-      if (checkSubsumption(p, s)) {
-        p = std::move(s);
-      }
-      else if (mergeSchemes(p, s, merged)) {
-        p = std::move(merged);
-        break;
-      }
-    }
-  }
-  secondary.clear();
-}
-
-void InductionSchemeFilter::filter(vvector<InductionScheme>& schemes)
+void InductionSchemeFilter::filter(vvector<InductionScheme>& schemes, const OccurrenceMap& actOccMaps)
 {
   CALL("InductionSchemeFilter::filter");
+
+  static const bool filterC = env.options->inductionOnComplexTermsHeuristic();
+  if (filterC) {
+    filterComplex(schemes, actOccMaps);
+  }
 
   for (unsigned i = 0; i < schemes.size();) {
     bool subsumed = false;
@@ -192,11 +167,11 @@ void InductionSchemeFilter::filter(vvector<InductionScheme>& schemes)
       }
 
       InductionScheme merged;
-      if (checkSubsumption(schemes[j], schemes[i])) {
+      if (checkContainment(schemes[j], schemes[i])) {
         schemes[j] = std::move(schemes.back());
         schemes.pop_back();
       }
-      else if (checkSubsumption(schemes[i], schemes[j])) {
+      else if (checkContainment(schemes[i], schemes[j])) {
         subsumed = true;
         break;
       }
@@ -222,24 +197,18 @@ void InductionSchemeFilter::filterComplex(vvector<InductionScheme>& schemes, con
 {
   for (unsigned i = 0; i < schemes.size();) {
     bool filter = false;
-    for (const auto& c : schemes[i].cases()) {
-      for (const auto& kv : c._step) {
-        auto term = kv.first;
-        if (env.signature->getFunction(term.term()->functor())->skolem()) {
-          continue;
-        }
-        unsigned occ = 0;
-        for (const auto& kv : occMap) {
-          if (kv.first.second == term) {
-            occ += kv.second.num_bits();
-          }
-        }
-        if (occ == 1) {
-          filter = true;
-          break;
+    for (const auto& indTerm : schemes[i].inductionTerms()) {
+      if (env.signature->getFunction(indTerm.term()->functor())->skolem()) {
+        continue;
+      }
+      unsigned occ = 0;
+      for (const auto& kv : occMap) {
+        if (kv.first.second == indTerm) {
+          occ += kv.second.num_bits();
         }
       }
-      if (filter) {
+      if (occ == 1) {
+        filter = true;
         break;
       }
     }
@@ -258,28 +227,23 @@ void InductionSchemeFilter::filterComplex(vvector<InductionScheme>& schemes, con
 }
 
 /**
- * Checks whether sch1 is subsumed by sch2 by the following criteria:
- * - all step cases of sch1 is a subterm of some step case of sch2
- *   up to variable renaming
- * - base cases are not checked since exhaustiveness of cases and
- *   containment of step cases implies containment of base cases too
+ * Checks whether all cases of sch1 are contained by some case of sch2
  */
-bool InductionSchemeFilter::checkSubsumption(const InductionScheme& sch1, const InductionScheme& sch2)
+bool InductionSchemeFilter::checkContainment(const InductionScheme& sch1, const InductionScheme& sch2)
 {
-  CALL("checkSubsumption");
-  auto var = max(sch1.maxVar(),sch2.maxVar()) + 1;
+  CALL("InductionSchemeFilter::checkContainment");
 
   if (sch1.inductionTerms() != sch2.inductionTerms()) {
     return false;
   }
 
+  auto var = max(sch1.maxVar(),sch2.maxVar()) + 1;
   for (const auto& case1 : sch1.cases()) {
     if (case1._recursiveCalls.empty()) {
       continue;
     }
     bool foundStep = false;
     for (const auto& case2 : sch2.cases()) {
-      // only check recursive cases
       if (case2._recursiveCalls.empty()) {
         continue;
       }

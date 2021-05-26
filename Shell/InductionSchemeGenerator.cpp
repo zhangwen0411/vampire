@@ -41,7 +41,7 @@ inline bool containsSkolem(TermList t)
   SubtermIterator stit(t.term());
   while (stit.hasNext()) {
     auto st = stit.next();
-    if (env.signature->getFunction(st.term()->functor())->skolem()) {
+    if (skolem(st)) {
       return true;
     }
   }
@@ -90,8 +90,8 @@ vvector<TermList> getInductionTerms(TermList t)
     }
   } else if (isTermAlgebraCons(t)) {
     for (unsigned i = 0; i < t.term()->arity(); i++) {
-      auto st = *t.term()->nthArgument(i);
       if (type->arg(i) == type->result()) {
+        auto st = *t.term()->nthArgument(i);
         auto indTerms = getInductionTerms(st);
         v.insert(v.end(), indTerms.begin(), indTerms.end());
       }
@@ -100,7 +100,7 @@ vvector<TermList> getInductionTerms(TermList t)
   return v;
 }
 
-TermList TermReplacement2::transformSubterm(TermList trm)
+TermList TermReplacement::transformSubterm(TermList trm)
 {
   auto rIt = _r.find(trm);
   if (rIt != _r.end()) {
@@ -109,7 +109,7 @@ TermList TermReplacement2::transformSubterm(TermList trm)
   return trm;
 }
 
-TermList TermOccurrenceReplacement2::transformSubterm(TermList trm)
+TermList TermOccurrenceReplacement::transformSubterm(TermList trm)
 {
   auto rIt = _r.find(trm);
   if (rIt != _r.end()) {
@@ -347,27 +347,25 @@ void RecursionInductionSchemeGenerator::generate(
 {
   CALL("RecursionInductionSchemeGenerator::generate()");
 
-  vvector<InductionScheme> primarySchemes;
-  vvector<InductionScheme> secondarySchemes;
+  vvector<InductionScheme> schemes;
   _actOccMaps.clear();
 
   static vset<Literal*> litsProcessed;
   litsProcessed.clear();
   litsProcessed.insert(main.literal);
 
-  generate(main.clause, main.literal, primarySchemes);
+  generate(main.clause, main.literal, schemes);
   for (const auto& s : side) {
     if (litsProcessed.insert(s.first).second) {
-      generate(s.second, s.first, primarySchemes);
-      // generate(s.second, s.first, secondarySchemes);
+      generate(s.second, s.first, schemes);
     }
   }
   for (auto& o : _actOccMaps) {
     o.second.finalize();
   }
-  for (unsigned i = 0; i < primarySchemes.size();) {
+  for (unsigned i = 0; i < schemes.size();) {
     auto found = false;
-    for (const auto& indTerm : primarySchemes[i].inductionTerms()) {
+    for (const auto& indTerm : schemes[i].inductionTerms()) {
       auto it = _actOccMaps.find(make_pair(main.literal, indTerm));
       if (it != _actOccMaps.end() && it->second.num_set_bits()) {
         found = true;
@@ -375,20 +373,16 @@ void RecursionInductionSchemeGenerator::generate(
       }
     }
     if (!found) {
-      primarySchemes[i] = primarySchemes.back();
-      primarySchemes.pop_back();
+      schemes[i] = schemes.back();
+      schemes.pop_back();
     } else {
       i++;
     }
   }
-  InductionSchemeFilter f;
-  f.filter(primarySchemes, secondarySchemes);
-  static const bool filterComplex = env.options->inductionOnComplexTermsHeuristic();
-  if (filterComplex) {
-    f.filterComplex(primarySchemes, _actOccMaps);
-  }
+  static InductionSchemeFilter f;
+  f.filter(schemes, _actOccMaps);
 
-  for (const auto& sch : primarySchemes) {
+  for (const auto& sch : schemes) {
     OccurrenceMap necessary;
     for (const auto& kv : _actOccMaps) {
       if (sch.inductionTerms().count(kv.first.second)) {
