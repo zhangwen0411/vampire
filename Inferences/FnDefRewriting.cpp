@@ -72,8 +72,7 @@ void FnDefRewriting::detach()
 
 struct FnDefRewriting::InstancesFn {
   InstancesFn(TermIndex *index) : _index(index) {}
-  DECL_RETURN_TYPE(VirtualIterator<pair<pair<Literal *, TermList>, TermQueryResult>>);
-  OWN_RETURN_TYPE operator()(pair<Literal *, TermList> arg)
+  VirtualIterator<pair<pair<Literal *, TermList>, TermQueryResult>> operator()(pair<Literal *, TermList> arg)
   {
     CALL("FnDefRewriting::InstancesFn()");
     return pvi(pushPairIntoRightIterator(arg, _index->getInstances(arg.second, true)));
@@ -85,8 +84,7 @@ private:
 
 struct FnDefRewriting::GeneralizationsFn {
   GeneralizationsFn(TermIndex *index) : _index(index) {}
-  DECL_RETURN_TYPE(VirtualIterator<pair<pair<Literal *, TermList>, TermQueryResult>>);
-  OWN_RETURN_TYPE operator()(pair<Literal *, TermList> arg)
+  VirtualIterator<pair<pair<Literal *, TermList>, TermQueryResult>> operator()(pair<Literal *, TermList> arg)
   {
     CALL("FnDefRewriting::GeneralizationsFn()");
     return pvi(pushPairIntoRightIterator(arg, _index->getGeneralizations(arg.second, true)));
@@ -99,8 +97,7 @@ private:
 struct FnDefRewriting::RewriteableSubtermsFn {
   RewriteableSubtermsFn() = default;
 
-  DECL_RETURN_TYPE(VirtualIterator<pair<Literal *, TermList>>);
-  OWN_RETURN_TYPE operator()(Literal *lit)
+  VirtualIterator<pair<Literal *, TermList>> operator()(Literal *lit)
   {
     CALL("FnDefRewriting::RewriteableSubtermsFn()");
     NonVariableIterator nvi(lit);
@@ -111,8 +108,8 @@ struct FnDefRewriting::RewriteableSubtermsFn {
 
 struct FnDefRewriting::ForwardResultFn {
   ForwardResultFn(Clause *cl) : _cl(cl) {}
-  DECL_RETURN_TYPE(Clause *);
-  OWN_RETURN_TYPE operator()(pair<pair<Literal *, TermList>, TermQueryResult> arg)
+
+  Clause* operator()(pair<pair<Literal *, TermList>, TermQueryResult> arg)
   {
     CALL("FnDefRewriting::ForwardResultFn()");
 
@@ -127,8 +124,8 @@ private:
 
 struct FnDefRewriting::BackwardResultFn {
   BackwardResultFn(Clause *cl) : _cl(cl) {}
-  DECL_RETURN_TYPE(Clause *);
-  OWN_RETURN_TYPE operator()(pair<pair<Literal *, TermList>, TermQueryResult> arg)
+
+  Clause* operator()(pair<pair<Literal *, TermList>, TermQueryResult> arg)
   {
     CALL("FnDefRewriting::BackwardResultFn()");
 

@@ -216,8 +216,7 @@ namespace Inferences {
   {
     SubtermEqualityFn(Clause* premise)
       : _premise(premise) {}
-    DECL_RETURN_TYPE(VirtualIterator<Clause*>);
-    OWN_RETURN_TYPE operator()(Literal* lit)
+    VirtualIterator<Clause*> operator()(Literal* lit)
     {
       CALL("InjectivityGIE::SubtermEqualityFn::operator()");
 
@@ -436,8 +435,7 @@ namespace Inferences {
       _aidx(aidx),
       _premise(premise)
     {}
-    DECL_RETURN_TYPE(VirtualIterator<Clause*>);
-    OWN_RETURN_TYPE operator()(Literal* lit)
+    VirtualIterator<Clause*> operator()(Literal* lit)
     {
       CALL("AcyclicityGIE::AyclicityGenFn::operator()");
 
@@ -557,8 +555,7 @@ namespace Inferences {
   {
     SubtermDisequalityFn(Clause* premise)
       : _premise(premise) {}
-    DECL_RETURN_TYPE(VirtualIterator<Clause*>);
-    OWN_RETURN_TYPE operator()(Literal* lit)
+    VirtualIterator<Clause*> operator()(Literal* lit)
     {
       CALL("AcyclicityGIE1::SubtermDisequalityFn::operator()");
 

@@ -141,6 +141,10 @@ void SMTLIB2::readBenchmark(LExprList* bench)
     if (ibRdr.tryAcceptAtom("define-sort")) {
       vstring name = ibRdr.readAtom();
       LExprList* args = ibRdr.readList();
+
+      if (!ibRdr.hasNext()) {
+        USER_ERROR("define-sort expects a sort definition body");
+      }
       LExpr* body = ibRdr.readNext();
 
       readDefineSort(name,args,body);
@@ -153,6 +157,10 @@ void SMTLIB2::readBenchmark(LExprList* bench)
     if (ibRdr.tryAcceptAtom("declare-fun")) {
       vstring name = ibRdr.readAtom();
       LExprList* iSorts = ibRdr.readList();
+
+      if (!ibRdr.hasNext()) {
+        USER_ERROR("declare-fun expects an output sort");
+      }
       LExpr* oSort = ibRdr.readNext();
 
       readDeclareFun(name,iSorts,oSort);
@@ -197,6 +205,9 @@ void SMTLIB2::readBenchmark(LExprList* bench)
     
     if (ibRdr.tryAcceptAtom("declare-const")) {
       vstring name = ibRdr.readAtom();
+      if (!ibRdr.hasNext()) {
+        USER_ERROR("declare-const expects a const definition body");
+      }
       LExpr* oSort = ibRdr.readNext();
 
       readDeclareFun(name,nullptr,oSort);
@@ -209,7 +220,13 @@ void SMTLIB2::readBenchmark(LExprList* bench)
     if (ibRdr.tryAcceptAtom("define-fun")) {
       vstring name = ibRdr.readAtom();
       LExprList* iArgs = ibRdr.readList();
+      if (!ibRdr.hasNext()) {
+        USER_ERROR("define-fun expects an output sort");
+      }
       LExpr* oSort = ibRdr.readNext();
+      if (!ibRdr.hasNext()) {
+        USER_ERROR("define-fun expects a fun definition body");
+      }
       LExpr* body = ibRdr.readNext();
 
       readDefineFun(name,iArgs,oSort,body);
@@ -233,16 +250,23 @@ void SMTLIB2::readBenchmark(LExprList* bench)
     }
 
     if (ibRdr.tryAcceptAtom("assert")) {
-      readAssert(ibRdr.readNext());
+      if (!ibRdr.hasNext()) {
+        USER_ERROR("assert expects a body");
+      }
+      LExpr* body = ibRdr.readNext();
+      readAssert(body);
 
       ibRdr.acceptEOL();
 
       continue;
     }
 
-    if (ibRdr.tryAcceptAtom("assert-not")
-      || ibRdr.tryAcceptAtom("prove")) {
-      readAssertNot(ibRdr.readNext());
+    if (ibRdr.tryAcceptAtom("assert-not")) {
+      if (!ibRdr.hasNext()) {
+        USER_ERROR("assert-not expects a body");
+      }
+      LExpr* body = ibRdr.readNext();
+      readAssertNot(body);
 
       ibRdr.acceptEOL();
 
@@ -250,7 +274,11 @@ void SMTLIB2::readBenchmark(LExprList* bench)
     }
 
     if (ibRdr.tryAcceptAtom("assert-theory")) {
-      readAssertTheory(ibRdr.readNext());
+      if (!ibRdr.hasNext()) {
+        USER_ERROR("assert-theory expects a body");
+      }
+      LExpr* body = ibRdr.readNext();
+      readAssertTheory(body);
 
       ibRdr.acceptEOL();
 
