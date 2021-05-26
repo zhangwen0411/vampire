@@ -235,13 +235,11 @@ void GeneralInduction::generateClauses(
 
   vmap<TermList, TermList> r;
   unsigned var = 0;
-  for (const auto& c : scheme.cases()) {
-    for (const auto& kv : c._step) {
-      if (r.count(kv.first) > 0) {
-        continue;
-      }
-      r.insert(make_pair(kv.first, TermList(var++,false)));
+  for (const auto& indTerm : scheme.inductionTerms()) {
+    if (r.count(indTerm)) {
+      continue;
     }
+    r.insert(make_pair(indTerm, TermList(var++,false)));
   }
   vvector<pair<Literal*, SLQueryResult>> conclusionToLitMap;
   TermOccurrenceReplacement tr(r, occurrences, mainLit.literal);
