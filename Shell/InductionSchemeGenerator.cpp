@@ -192,7 +192,7 @@ bool InductionScheme::finalize()
       }
     }
   }
-  addBaseCases();
+  ALWAYS(addBaseCases());
   _cases.shrink_to_fit();
   vvector<pair<TermList,TermList>> relatedTerms;
   for (auto& c : _cases) {
@@ -206,61 +206,28 @@ bool InductionScheme::finalize()
   return InductionPreprocessor::checkWellFoundedness(relatedTerms);
 }
 
-void InductionScheme::addBaseCases() {
+bool InductionScheme::addBaseCases() {
   unsigned var = _maxVar;
-  vvector<vmap<TermList, vvector<TermList>>> availableTermsLists(1); // contains one empty map
+  vvector<Term*> cases;
+  vvector<vvector<TermList>> missingCases;
   for (const auto& c : _cases) {
-    vvector<vmap<TermList, vvector<TermList>>> nextAvailableTermsLists;
-    for (const auto& kv : c._step) {
-      if (kv.second.isTerm()) {
-        auto tempLists = availableTermsLists;
-        for (auto& availableTerms : tempLists) {
-          auto pIt = availableTerms.find(kv.first);
-          if (pIt == availableTerms.end()) {
-            pIt = availableTerms.insert(
-              make_pair(kv.first, TermAlgebra::generateAvailableTerms(kv.first.term(), var))).first;
-          }
-          TermAlgebra::excludeTermFromAvailables(pIt->second, kv.second, var);
-        }
-        nextAvailableTermsLists.insert(nextAvailableTermsLists.end(),
-          tempLists.begin(), tempLists.end());
-      }
-    }
-    availableTermsLists = nextAvailableTermsLists;
+    cases.push_back(InductionScheme::createRepresentingTerm(_inductionTerms, c._step, var).term());
   }
+  auto res = InductionPreprocessor::checkWellDefinedness(cases, missingCases, var);
 
-  // We have a set here so there are no duplicate cases
-  vset<vmap<TermList, TermList>> steps;
-  for (const auto& availableTerms : availableTermsLists) {
-    vvector<vmap<TermList, TermList>> temp(1);
-    auto invalid = false;
-    for (const auto& kv : availableTerms) {
-      if (kv.second.empty()) {
-        invalid = true;
-        break;
-      }
-      vvector<vmap<TermList, TermList>> newTemp;
-      for (const auto& p : kv.second) {
-        for (auto step : temp) { // intentionally copy step here
-          ASS(!step.count(kv.first));
-          step.insert(make_pair(kv.first, p));
-          newTemp.push_back(step);
-        }
-      }
-      temp = newTemp;
-    }
-    if (!invalid) {
-      steps.insert(temp.begin(), temp.end());
-    }
-  }
-
-  // each step gets an empty recursive call and condition set
   var = _maxVar;
-  for (auto step : steps) {
+  for (auto c : missingCases) {
+    vmap<TermList, TermList> step;
+    auto it = c.begin();
+    for (const auto& indTerm : _inductionTerms) {
+      step.insert(make_pair(indTerm, *it));
+      it++;
+    }
     vvector<vmap<TermList,TermList>> emptyRecCalls;
     _cases.emplace_back(std::move(emptyRecCalls), std::move(step));
   }
   _maxVar = var;
+  return res;
 }
 
 TermList InductionScheme::createRepresentingTerm(const vset<TermList>& inductionTerms, const vmap<TermList,TermList>& r, unsigned& var)

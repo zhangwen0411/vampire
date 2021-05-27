@@ -70,80 +70,12 @@ ostream& operator<<(ostream& out, const InductionTemplate::Branch& branch)
 
 bool InductionTemplate::checkWellDefinedness(vvector<vvector<TermList>>& missingCases)
 {
-  missingCases.clear();
-  auto arity = _branches[0]._header.term()->arity();
-  if (arity == 0) {
-    return true;
-  }
-  if (_branches.empty()) {
-    return false;
-  }
+  vvector<Term*> cases;
   unsigned var = 0;
-  vvector<vvector<TermList>> availableTermsEmpty;
-  for (unsigned i = 0; i < arity; i++) {
-    vvector<TermList> v;
-    v.push_back(TermList(var++, false));
-    availableTermsEmpty.push_back(v);
-  }
-  vvector<vvector<vvector<TermList>>> availableTermsLists;
-  availableTermsLists.push_back(availableTermsEmpty);
-
-  bool overdefined = false;
   for (auto& b : _branches) {
-    vvector<vvector<vvector<TermList>>> nextAvailableTermsLists;
-    Term::Iterator it(b._header.term());
-    unsigned j = 0;
-    while (it.hasNext()) {
-      auto arg = it.next();
-      bool excluded = false;
-      if (arg.isTerm()) {
-        auto tempLists = availableTermsLists;
-        for (auto& availableTerms : tempLists) {
-          if (TermAlgebra::excludeTermFromAvailables(availableTerms[j], arg, var)) {
-            excluded = true;
-          }
-        }
-        nextAvailableTermsLists.insert(nextAvailableTermsLists.end(),
-          tempLists.begin(), tempLists.end());
-      } else {
-        for (const auto& availableTerms : availableTermsLists) {
-          if (!availableTerms[j].empty()) {
-            excluded = true;
-            break;
-          }
-        }
-      }
-      if (!excluded) {
-        overdefined = true;
-      }
-      j++;
-    }
-    availableTermsLists = nextAvailableTermsLists;
+    cases.push_back(b._header.term());
   }
-
-  for (const auto& availableTerms : availableTermsLists) {
-    bool valid = true;
-    vvector<vvector<TermList>> argTuples(1);
-    for (const auto& v : availableTerms) {
-      if (v.empty()) {
-        valid = false;
-        break;
-      }
-      for (const auto& e : v) {
-        vvector<vvector<TermList>> temp;
-        for (auto a : argTuples) {
-          a.push_back(e);
-          temp.push_back(a);
-        }
-        argTuples = temp;
-      }
-    }
-    if (valid) {
-      missingCases.insert(missingCases.end(),
-        argTuples.begin(), argTuples.end());
-    }
-  }
-  return !overdefined && missingCases.empty();
+  return InductionPreprocessor::checkWellDefinedness(cases, missingCases, var);
 }
 
 void InductionTemplate::addMissingCases(const vvector<vvector<TermList>>& missingCases)
@@ -491,6 +423,83 @@ bool InductionPreprocessor::checkWellFoundedness(const vvector<pair<TermList,Ter
     indices.insert(i);
   }
   return checkWellFoundednessHelper(relatedTerms, indices, positions);
+}
+
+bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vvector<vvector<TermList>>& missingCases, unsigned& var)
+{
+  if (cases.empty()) {
+    return false;
+  }
+  missingCases.clear();
+  auto arity = cases[0]->arity();
+  if (arity == 0) {
+    return true;
+  }
+  vvector<vvector<TermList>> availableTermsEmpty;
+  for (unsigned i = 0; i < arity; i++) {
+    vvector<TermList> v;
+    v.push_back(TermList(var++, false));
+    availableTermsEmpty.push_back(v);
+  }
+  vvector<vvector<vvector<TermList>>> availableTermsLists;
+  availableTermsLists.push_back(availableTermsEmpty);
+
+  bool overdefined = false;
+  for (auto& c : cases) {
+    vvector<vvector<vvector<TermList>>> nextAvailableTermsLists;
+    Term::Iterator it(c);
+    unsigned j = 0;
+    while (it.hasNext()) {
+      auto arg = it.next();
+      bool excluded = false;
+      if (arg.isTerm()) {
+        auto tempLists = availableTermsLists;
+        for (auto& availableTerms : tempLists) {
+          if (TermAlgebra::excludeTermFromAvailables(availableTerms[j], arg, var)) {
+            excluded = true;
+          }
+        }
+        nextAvailableTermsLists.insert(nextAvailableTermsLists.end(),
+          tempLists.begin(), tempLists.end());
+      } else {
+        for (const auto& availableTerms : availableTermsLists) {
+          if (!availableTerms[j].empty()) {
+            excluded = true;
+            break;
+          }
+        }
+      }
+      if (!excluded) {
+        overdefined = true;
+      }
+      j++;
+    }
+    availableTermsLists = nextAvailableTermsLists;
+  }
+
+  for (const auto& availableTerms : availableTermsLists) {
+    bool valid = true;
+    vvector<vvector<TermList>> argTuples(1);
+    for (const auto& v : availableTerms) {
+      if (v.empty()) {
+        valid = false;
+        break;
+      }
+      for (const auto& e : v) {
+        vvector<vvector<TermList>> temp;
+        for (auto a : argTuples) {
+          a.push_back(e);
+          temp.push_back(a);
+        }
+        argTuples = temp;
+      }
+    }
+    if (valid) {
+      missingCases.insert(missingCases.end(),
+        argTuples.begin(), argTuples.end());
+    }
+  }
+  return !overdefined && missingCases.empty();
 }
 
 } // Shell

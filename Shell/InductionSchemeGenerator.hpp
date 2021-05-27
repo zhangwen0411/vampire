@@ -170,7 +170,7 @@ public:
   unsigned maxVar() const { ASS(_finalized); return _maxVar; }
 
 private:
-  void addBaseCases();
+  bool addBaseCases();
 
   vvector<Case> _cases;
   unsigned _maxVar;
