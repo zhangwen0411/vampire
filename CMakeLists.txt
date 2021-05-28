@@ -868,6 +868,16 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL GNU OR CMAKE_CXX_COMPILER_ID MATCHES Clang$)
 endif()
 
 ################################################################
+# libtorch stuff
+################################################################
+
+find_package(Torch REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
+# later need to start cmake using, e.g.
+# cmake -DCMAKE_PREFIX_PATH=/absolute_path_to/libtorch -G "Unix Makefiles" ../
+
+################################################################
 # z3 stuff
 ################################################################
 
@@ -909,6 +919,7 @@ endif()
 # build objects
 ################################################################
 add_library(obj OBJECT ${VAMPIRE_SOURCES})
+target_link_libraries(obj "${TORCH_LIBRARIES}")
 if (COMPILE_TESTS) 
   add_library(test_obj OBJECT ${VAMPIRE_TESTING_SOURCES})
 endif()
@@ -1017,6 +1028,9 @@ message(STATUS "Setting binary name to '${VAMPIRE_BINARY}'")
 # epilogue
 ################################################################
 add_executable(vampire vampire.cpp $<TARGET_OBJECTS:obj>)
+
+target_link_libraries(vampire "${TORCH_LIBRARIES}")
+
 set_target_properties(vampire PROPERTIES
   OUTPUT_NAME ${VAMPIRE_BINARY}
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
