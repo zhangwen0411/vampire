@@ -112,6 +112,16 @@ private:
 
 using OccurrenceMap = vmap<pair<Literal*, TermList>, Occurrences>;
 
+class VarReplacement : public TermTransformer {
+public:
+  VarReplacement(unsigned& var) : _v(var) {}
+  TermList transformSubterm(TermList trm) override;
+
+private:
+  unsigned& _v;
+  vmap<unsigned, unsigned> _r;
+};
+
 /**
  * Replaces a subset of occurrences for given TermLists
  */
@@ -130,7 +140,7 @@ private:
 class TermOccurrenceReplacement : public TermTransformer {
 public:
   TermOccurrenceReplacement(const vmap<TermList, TermList>& r,
-                             const OccurrenceMap& occ, Literal* lit)
+                            const OccurrenceMap& occ, Literal* lit)
                             : _r(r), _o(occ), _lit(lit) {}
   TermList transformSubterm(TermList trm) override;
 

@@ -102,7 +102,7 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
     const auto& sides = kv.second;
     static vvector<pair<InductionScheme, OccurrenceMap>> schOccMap;
     schOccMap.clear();
-    RecursionInductionSchemeGenerator gen;
+    StructuralInductionSchemeGenerator gen;
     gen.generate(main, sides, schOccMap);
     vvector<pair<Literal*, vset<Literal*>>> schLits;
     for (const auto& kv : schOccMap) {
@@ -124,7 +124,7 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
         continue;
       }
       static const bool heuristic = env.options->inductionGenHeur();
-      GeneralizationIterator g(kv.second, heuristic);
+      NoGeneralizationIterator g(kv.second);
       while (g.hasNext()) {
         auto eg = g.next();
         generateClauses(kv.first, eg, main, sidesFiltered, res._clauses);
@@ -156,26 +156,31 @@ void GeneralInduction::detach()
   GeneratingInferenceEngine::detach();
 }
 
-Literal* replaceLit(const vmap<TermList,TermList>& r, const OccurrenceMap& occurrences, Literal* lit, const vset<pair<Literal*,Clause*>>& sideLits,
-  const vmap<TermList,TermList>& v2sk, const vvector<LiteralStack>& lits, vvector<LiteralStack>& newLits, bool hypothesis = false)
+Literal* GeneralInduction::replaceLit(unsigned& var, const vmap<TermList,TermList>& r, const OccurrenceMap& occurrences, Literal* lit,
+  const vset<pair<Literal*,Clause*>>& sideLits, const vvector<LiteralStack>& lits, vvector<LiteralStack>& newLits, bool hypothesis)
 {
   TermOccurrenceReplacement tr(r, occurrences, lit);
+  // skolemize before introducing new variables
+  if (hypothesis) {
+    lit = skolemizeLiteral(lit);
+  }
   auto newLit = tr.transform(lit);
   if (newLit != lit) {
-    TermReplacement tr2(v2sk);
-    newLit = tr2.transform(newLit);
     if (hypothesis) {
       newLit = Literal::complementaryLiteral(newLit);
+    } else {
+      VarReplacement vr(var);
+      newLit = vr.transform(newLit);
     }
     for (auto st : lits) {
       st.push(newLit);
       if (hypothesis) {
         for (const auto& kv : sideLits) {
+          auto sl = skolemizeLiteral(kv.first);
           TermOccurrenceReplacement trs(r, occurrences, kv.first);
-          auto newLitS = trs.transform(kv.first);
-          if (newLitS != kv.first) {
-            TermReplacement trs2(v2sk);
-            newLitS = Literal::complementaryLiteral(trs2.transform(newLitS));
+          auto newLitS = trs.transform(sl);
+          if (newLitS != sl) {
+            newLitS = skolemizeLiteral(Literal::complementaryLiteral(newLitS));
             st.push(newLitS);
           }
         }
@@ -209,21 +214,22 @@ void GeneralInduction::generateClauses(
   vvector<LiteralStack> lits(1);
   vmap<Literal*, Literal*> hypToConcMap;
   vmap<Literal*, bool> reversedLitMap;
+  unsigned var = 0;
 
   for (const auto& c : scheme.cases()) {
     vvector<LiteralStack> newLits;
 
-    auto v2sk = skolemizeCase(c);
-    auto newMainLit = replaceLit(c._step, occurrences, mainLit.literal, sideLits, v2sk, lits, newLits);
+    auto skC = skolemizeCase(c);
+    auto newMainLit = replaceLit(var, skC._step, occurrences, mainLit.literal, sideLits, lits, newLits);
     ASS_NEQ(newMainLit, mainLit.literal);
     reversedLitMap.insert(make_pair(newMainLit, newMainLit->isOrientedReversed()));
 
     for (const auto& kv : sideLits) {
-      replaceLit(c._step, occurrences, kv.first, sideLits, v2sk, lits, newLits);
+      replaceLit(var, skC._step, occurrences, kv.first, sideLits, lits, newLits);
     }
 
-    for (const auto& r : c._recursiveCalls) {
-      auto newHypLit = replaceLit(r, occurrences, mainLit.literal, sideLits, v2sk, lits, newLits, true);
+    for (const auto& r : skC._recursiveCalls) {
+      auto newHypLit = replaceLit(var, r, occurrences, mainLit.literal, sideLits, lits, newLits, true);
       ASS_NEQ(newHypLit, mainLit.literal);
       reversedLitMap.insert(make_pair(newHypLit, newHypLit->isOrientedReversed()));
       if (env.options->inductionHypRewriting()) {
@@ -234,7 +240,6 @@ void GeneralInduction::generateClauses(
   }
 
   vmap<TermList, TermList> r;
-  unsigned var = 0;
   for (const auto& indTerm : scheme.inductionTerms()) {
     if (r.count(indTerm)) {
       continue;
@@ -242,9 +247,10 @@ void GeneralInduction::generateClauses(
     r.insert(make_pair(indTerm, TermList(var++,false)));
   }
   vvector<pair<Literal*, SLQueryResult>> conclusionToLitMap;
+  auto ml = skolemizeLiteral(mainLit.literal);
   TermOccurrenceReplacement tr(r, occurrences, mainLit.literal);
-  auto newMainLit = tr.transform(mainLit.literal);
-  ASS(mainLit.literal != newMainLit);
+  auto newMainLit = tr.transform(ml);
+  ASS(ml != newMainLit);
   newMainLit = Literal::complementaryLiteral(newMainLit);
   for (auto& st : lits) {
     st.push(newMainLit);
@@ -252,9 +258,10 @@ void GeneralInduction::generateClauses(
   conclusionToLitMap.push_back(make_pair(newMainLit, mainLit));
 
   for (const auto& kv : sideLits) {
+    auto sl = skolemizeLiteral(kv.first);
     TermOccurrenceReplacement tr(r, occurrences, kv.first);
-    auto newLit = tr.transform(kv.first);
-    if (kv.first != newLit) {
+    auto newLit = tr.transform(sl);
+    if (sl != newLit) {
       newLit = Literal::complementaryLiteral(newLit);
       for (auto& st : lits) {
         st.push(newLit);
@@ -290,11 +297,11 @@ void GeneralInduction::generateClauses(
   for (const auto& kv : conclusionToLitMap) {
     auto conclusion = kv.first;
     auto qr = kv.second;
-    if (!subst.match(TermList(conclusion), 0, TermList(qr.literal), 1)) {
+    if (!subst.unify(TermList(conclusion), 0, TermList(qr.literal), 1)) {
       ASS_REP(conclusion->isEquality() && qr.literal->isEquality(), conclusion->toString() + qr.literal->toString());
       // direct match did not succeed, so we match one literal with the other reversed
-      ALWAYS(subst.match(*conclusion->nthArgument(0), 0, *qr.literal->nthArgument(1), 1)
-        && subst.match(*conclusion->nthArgument(1), 0, *qr.literal->nthArgument(0), 1));
+      ALWAYS(subst.unify(*conclusion->nthArgument(0), 0, *qr.literal->nthArgument(1), 1)
+        && subst.unify(*conclusion->nthArgument(1), 0, *qr.literal->nthArgument(0), 1));
     }
   }
   auto it = conclusionToLitMap.begin();
@@ -326,7 +333,7 @@ void GeneralInduction::generateClauses(
   env.statistics->induction++;
 }
 
-void mapVarsToSkolems(vmap<TermList, TermList>& varToSkolemMap, pair<TermList, TermList> kv) {
+TermList mapVarsToSkolems(vmap<TermList, TermList>& varToSkolemMap, pair<TermList, TermList> kv) {
   DHMap<unsigned,TermList> varSorts;
   auto sort = SortHelper::getResultSort(kv.first.term());
   SortHelper::collectVariableSorts(kv.second,sort,varSorts);
@@ -334,28 +341,53 @@ void mapVarsToSkolems(vmap<TermList, TermList>& varToSkolemMap, pair<TermList, T
   auto it = varSorts.items();
   while (it.hasNext()) {
     auto v = it.next();
-    TermList var(v.first,false);
-    if (varToSkolemMap.count(var)) {
-      continue;
+    TermList var(v.first, false);
+    if (!varToSkolemMap.count(var)) {
+      auto skFun = Skolem::addSkolemFunction(0,0,nullptr,v.second);
+      varToSkolemMap.insert(make_pair(var, Term::create(skFun, 0, nullptr)));
     }
-
-    auto skFun = Skolem::addSkolemFunction(0,0,nullptr,v.second);
-    varToSkolemMap.insert(make_pair(var, Term::create(skFun, 0, nullptr)));
   }
+  TermReplacement tr(varToSkolemMap);
+  if (kv.second.isTerm()) {
+    return TermList(tr.transform(kv.second.term()));
+  }
+  return tr.transformSubterm(kv.second);
 }
 
-vmap<TermList, TermList> GeneralInduction::skolemizeCase(const InductionScheme::Case& c)
+InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Case& c)
 {
   vmap<TermList, TermList> varToSkolemMap;
+  vmap<TermList, TermList> step;
   for (const auto& kv : c._step) {
-    mapVarsToSkolems(varToSkolemMap, kv);
+    step.insert(make_pair(kv.first, mapVarsToSkolems(varToSkolemMap, kv)));
   }
+  vvector<vmap<TermList, TermList>> recursiveCalls;
   for (const auto& recCall : c._recursiveCalls) {
+    recursiveCalls.emplace_back();
     for (const auto& kv : recCall) {
-      mapVarsToSkolems(varToSkolemMap, kv);
+      recursiveCalls.back().insert(make_pair(kv.first, mapVarsToSkolems(varToSkolemMap, kv)));
     }
   }
-  return varToSkolemMap;
+  return InductionScheme::Case(std::move(recursiveCalls), std::move(step));
+}
+
+Literal* GeneralInduction::skolemizeLiteral(Literal* lit)
+{
+  vmap<TermList, TermList> varToSkolemMap;
+  DHMap<unsigned,TermList> varSorts;
+  SortHelper::collectVariableSorts(lit,varSorts);
+
+  auto it = varSorts.items();
+  while (it.hasNext()) {
+    auto v = it.next();
+    TermList var(v.first, false);
+    if (!varToSkolemMap.count(var)) {
+      auto skFun = Skolem::addSkolemFunction(0,0,nullptr,v.second);
+      varToSkolemMap.insert(make_pair(var, Term::create(skFun, 0, nullptr)));
+    }
+  }
+  TermReplacement tr(varToSkolemMap);
+  return tr.transform(lit);
 }
 
 vmap<TermList, TermList> createBlanksForScheme(const InductionScheme& sch, DHMap<pair<TermList, unsigned>, TermList>& blanks)
@@ -426,7 +458,7 @@ inline bool mainLitCondition(Literal* literal) {
   static bool negOnly = env.options->inductionNegOnly();
   return (!negOnly || literal->isNegative() || 
       (theory->isInterpretedPredicate(literal) && theory->isInequality(theory->interpretPredicate(literal)))
-    ) && literal->ground();
+    );// && literal->ground();
 }
 
 inline bool sideLitCondition(Literal* main, Clause* mainCl, Literal* side, Clause* sideCl) {

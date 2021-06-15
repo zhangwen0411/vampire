@@ -100,6 +100,18 @@ vvector<TermList> getInductionTerms(TermList t)
   return v;
 }
 
+TermList VarReplacement::transformSubterm(TermList trm)
+{
+  if (trm.isTerm()) {
+    return trm;
+  }
+  auto rIt = _r.find(trm.var());
+  if (rIt == _r.end()) {
+    rIt = _r.insert(make_pair(trm.var(), _v++)).first;
+  }
+  return TermList(rIt->second, false);
+}
+
 TermList TermReplacement::transformSubterm(TermList trm)
 {
   auto rIt = _r.find(trm);
@@ -571,7 +583,7 @@ void StructuralInductionSchemeGenerator::generate(
   SubtermIterator it(main.literal);
   while(it.hasNext()){
     TermList ts = it.next();
-    ASS(ts.isTerm());
+    if (!ts.isTerm() || !ts.term()->ground()) { continue; }
     unsigned f = ts.term()->functor();
     if((complexTermsAllowed || env.signature->functionArity(f)==0) &&
         (

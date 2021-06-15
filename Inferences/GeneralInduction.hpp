@@ -39,6 +39,48 @@ namespace Inferences
 using namespace Kernel;
 using namespace Saturation;
 
+class NoGeneralizationIterator
+{
+public:
+  DECL_ELEMENT_TYPE(OccurrenceMap);
+
+  NoGeneralizationIterator(const OccurrenceMap& occ)
+    : _occ(occ), _hasNext(true) {}
+
+  inline bool hasNext()
+  {
+    return _hasNext;
+  }
+
+  inline OWN_ELEMENT_TYPE next()
+  {
+    CALL("GeneralizationIterator::next()");
+    ASS(_hasNext);
+
+    auto it = _occ.begin();
+    while (it != _occ.end()) {
+      it->second.set_bits();
+      it++;
+    }
+    _hasNext = false;
+    return _occ;
+  }
+
+  inline vstring toString()
+  {
+    vstringstream str;
+    for (const auto& kv : _occ) {
+      str << *kv.first.first << ", " << kv.first.second
+          << ": " << kv.second.toString() << " ";
+    }
+    return str.str();
+  }
+
+private:
+  OccurrenceMap _occ;
+  bool _hasNext;
+};
+
 class GeneralizationIterator
 {
 public:
@@ -132,10 +174,13 @@ private:
     const SLQueryResult& mainLit,
     const vset<pair<Literal*,Clause*>>& sideLits,
     ClauseStack& clauses);
-  vmap<TermList, TermList> skolemizeCase(const InductionScheme::Case& c);
+  InductionScheme::Case skolemizeCase(const InductionScheme::Case& c);
+  Literal* skolemizeLiteral(Literal* lit);
   bool alreadyDone(Literal* mainLit, const vset<pair<Literal*,Clause*>>& sides,
     const InductionScheme& sch, pair<Literal*,vset<Literal*>>& res);
   vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> selectMainSidePairs(Literal* literal, Clause* premise);
+  Literal* replaceLit(unsigned& var, const vmap<TermList,TermList>& r, const OccurrenceMap& occurrences, Literal* lit,
+    const vset<pair<Literal*,Clause*>>& sideLits, const vvector<LiteralStack>& lits, vvector<LiteralStack>& newLits, bool hypothesis = false);
 
   Splitter* _splitter;
   InferenceRule _rule;
