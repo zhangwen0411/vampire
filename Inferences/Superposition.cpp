@@ -24,6 +24,7 @@
 #include "Kernel/Clause.hpp"
 #include "Kernel/ColorHelper.hpp"
 #include "Kernel/EqHelper.hpp"
+#include "Kernel/Formula.hpp"
 #include "Kernel/Inference.hpp"
 #include "Kernel/Ordering.hpp"
 #include "Kernel/SortHelper.hpp"
@@ -375,6 +376,18 @@ bool Superposition::earlyWeightLimitCheck(Clause* eqClause, Literal* eqLit,
   return true;
 }
 
+TermList substITE(ResultSubstitution* subst, bool result, TermList t) {
+  if (t.isVar() || !t.term()->isSpecial()) {
+    return subst->apply(t, result);
+  }
+  auto tt = t.term();
+  auto s = tt->getSpecialData()->getSort();
+  auto cond = subst->apply(tt->getSpecialData()->getCondition()->literal(), result);
+  TermList thenBranch(substITE(subst, result, *tt->nthArgument(0)));
+  TermList elseBranch(substITE(subst, result, *tt->nthArgument(1)));
+  return TermList(Term::createITE(new AtomicFormula(cond), thenBranch, elseBranch, s));
+}
+
 /**
  * If superposition should be performed, return result of the superposition,
  * otherwise return 0.
@@ -681,6 +694,23 @@ Clause* Superposition::performSuperposition(
     } else {
       env.statistics->cBackwardSuperposition++;
     }
+  }
+
+  auto ans1 = eqClause->inference().ans();
+  auto ans2 = rwClause->inference().ans();
+  if (ans1.isNonEmpty()) {
+    ans1 = substITE(subst.ptr(), eqIsResult, ans1);
+  }
+  if (ans2.isNonEmpty()) {
+    ans2 = substITE(subst.ptr(), !eqIsResult, ans2);
+  }
+  if (ans1.isEmpty()) {
+    res->inference().setAns(ans2);
+  } else if (ans2.isEmpty() || ans1 == ans2) {
+    res->inference().setAns(ans1);
+  } else {
+    ASSERTION_VIOLATION;
+    // res->inference().setAns(TermList(Term::createITE(new AtomicFormula(subst->applyToResult(qr.literal)), ans1, ans2, queryCl->inference().ansSort())));
   }
 
 /*

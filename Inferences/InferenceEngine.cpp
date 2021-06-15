@@ -531,6 +531,7 @@ Clause* TrivialInequalitiesRemovalISE::simplify(Clause* c)
   for (int i = newLength-1;i >= 0;i--) {
     (*d)[i] = lits[newLength-i-1];
   }
+  d->inference().setAns(c->inference().ans());
   env.statistics->trivialInequalities += found;
 
   return d;

@@ -304,6 +304,7 @@ namespace Inferences {
           (*res)[oldLength + i - 1] = newLit;
         }
         env.statistics->taNegativeInjectivitySimplifications++;
+        res->inference().setAns(c->inference().ans());
 
         return res;
       }

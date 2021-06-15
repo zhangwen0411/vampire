@@ -22,6 +22,7 @@
 
 #include "Kernel/Clause.hpp"
 #include "Kernel/ColorHelper.hpp"
+#include "Kernel/Formula.hpp"
 #include "Kernel/Unit.hpp"
 #include "Kernel/Inference.hpp"
 #include "Kernel/LiteralSelector.hpp"
@@ -112,6 +113,18 @@ private:
   LiteralSelector& _selector;
   BinaryResolution& _parent;
 };
+
+TermList substITE(ResultSubstitution* subst, bool result, TermList t) {
+  if (t.isVar() || !t.term()->isSpecial()) {
+    return subst->apply(t, result);
+  }
+  auto tt = t.term();
+  auto s = tt->getSpecialData()->getSort();
+  auto cond = subst->apply(tt->getSpecialData()->getCondition()->literal(), result);
+  TermList thenBranch(substITE(subst, result, *tt->nthArgument(0)));
+  TermList elseBranch(substITE(subst, result, *tt->nthArgument(1)));
+  return TermList(Term::createITE(new AtomicFormula(cond), thenBranch, elseBranch, s));
+}
 
 /**
  * Ordering aftercheck is performed iff ord is not 0,
@@ -303,6 +316,22 @@ Clause* BinaryResolution::generateClause(Clause* queryCl, Literal* queryLit, SLQ
       (*res)[next] = newLit;
       next++;
     }
+  }
+
+  auto ans1 = queryCl->inference().ans();
+  auto ans2 = qr.clause->inference().ans();
+  if (ans1.isNonEmpty()) {
+    ans1 = substITE(qr.substitution.ptr(), false, ans1);
+  }
+  if (ans2.isNonEmpty()) {
+    ans2 = substITE(qr.substitution.ptr(), true, ans2);
+  }
+  if (ans1.isEmpty()) {
+    res->inference().setAns(ans2);
+  } else if (ans2.isEmpty() || ans1 == ans2) {
+    res->inference().setAns(ans1);
+  } else {
+    res->inference().setAns(TermList(Term::createITE(new AtomicFormula(qr.substitution->applyToResult(qr.literal)), ans1, ans2, queryCl->inference().ansSort())));
   }
 
   if(withConstraints){

@@ -23,6 +23,8 @@
 #include "Lib/VString.hpp"
 #include "Forwards.hpp"
 
+#include "Kernel/Term.hpp"
+
 #include <type_traits>
 
 using namespace std;
@@ -735,6 +737,7 @@ private:
     _sineLevel = std::numeric_limits<decltype(_sineLevel)>::max();
     _splits = nullptr;
     _age = 0;
+    _ans.makeEmpty();
   }
 
   void init0(UnitInputType inputType, InferenceRule r);
@@ -978,6 +981,11 @@ public:
   /** Set the age to @b a */
   void setAge(unsigned a) { _age = a; }
 
+  TermList ans() const { return _ans; }
+  TermList ansSort() const { return _ansSort; }
+  void setAns(TermList t) { _ans = t; }
+  void setAnsSort(TermList s) { _ansSort = s; }
+
 private:
   Kind _kind : 2;
 
@@ -1014,6 +1022,9 @@ private:
 
   /** age */
   unsigned _age;
+
+  TermList _ans;
+  TermList _ansSort;
 
   SplitSet* _splits;
 

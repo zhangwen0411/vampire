@@ -201,6 +201,8 @@ Clause* ForwardSubsumptionAndResolution::generateSubsumptionResolutionClause(Cla
     }
   }
 
+  res->inference().setAns(cl->inference().ans());
+
   return res;
 }
 

@@ -221,6 +221,7 @@ struct BackwardDemodulation::ResultFn
 
     env.statistics->backwardDemodulations++;
     _removed->insert(qr.clause);
+    res->inference().setAns(qr.clause->inference().ans());
     return BwSimplificationRecord(qr.clause,res);
   }
 private:

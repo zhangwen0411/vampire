@@ -221,6 +221,7 @@ bool ForwardDemodulationImpl<combinatorySupSupport>::perform(Clause* cl, Clause*
         env.statistics->forwardDemodulations++;
 
         premises = pvi( getSingletonIterator(qr.clause));
+        res->inference().setAns(cl->inference().ans());
         replacement = res;
         return true;
       }

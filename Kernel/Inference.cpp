@@ -296,6 +296,9 @@ vstring Inference::toString() const
   result += ", age: " + Int::toString(_age);
   result += ", thAx:" + Int::toString((int)(th_ancestors));
   result += ", allAx:" + Int::toString((int)(all_ancestors));
+  if (_ans.isNonEmpty()) {
+    result += ", ans:" + _ans.toString();
+  }
 
   return result;
 }

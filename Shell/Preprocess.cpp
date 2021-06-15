@@ -490,6 +490,23 @@ void Preprocess::preprocess(Problem& prb)
      bce.apply(prb);
    }
 
+   InferenceStore& is = *InferenceStore::instance();
+   UnitList::Iterator uit(prb.units());
+   while (uit.hasNext()) {
+     auto unit = uit.next();
+     InferenceRule infRule;
+     UnitIterator parents = is.getParents(unit, infRule);
+     if (unit->derivedFromGoal() && unit->isClause()) {
+       DHMap<unsigned,TermList> vars;
+       SortHelper::collectVariableSorts(unit, vars);
+       if (!vars.isEmpty()) {
+         ASS_EQ(vars.size(), 1);
+         unit->inference().setAns(TermList(vars.getOneKey(), false));
+         unit->inference().setAnsSort(vars.get(vars.getOneKey()));
+       }
+     }
+   }
+
    if (env.options->showPreprocessing()) {
      UnitList::Iterator uit(prb.units());
      while(uit.hasNext()) {

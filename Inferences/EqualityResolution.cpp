@@ -180,6 +180,11 @@ struct EqualityResolution::ResultFn
     ASS_EQ(next,newLen);
 
     env.statistics->equalityResolution++;
+    auto ans = _cl->inference().ans();
+    if (ans.isNonEmpty()) {
+      ans = subst.apply(ans, 0);
+    }
+    res->inference().setAns(ans);
 
     return res;
   }

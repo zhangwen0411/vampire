@@ -434,6 +434,9 @@ vstring Clause::toString() const
     result += ",allAx:" + Int::toString((int)(_inference.all_ancestors));
 
     result += ",thDist:" + Int::toString( _inference.th_ancestors * env.options->theorySplitQueueExpectedRatioDenom() - _inference.all_ancestors);
+    if(_inference.ans().isNonEmpty()) {
+      result += ",ans:" + _inference.ans().toString();
+    }
     result += vstring("}");
   }
 
