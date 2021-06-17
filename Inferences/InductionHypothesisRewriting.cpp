@@ -70,6 +70,9 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
     if (!hyp) {
       for (unsigned k = 0; k <= 1; k++) {
         auto litarg = *lit->nthArgument(k);
+        if (litarg.isVar()) {
+          continue;
+        }
         NonVariableIterator sti(litarg.term(), true);
         while (sti.hasNext()) {
           auto t = sti.next();

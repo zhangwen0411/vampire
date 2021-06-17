@@ -53,7 +53,7 @@ inline bool canInductOn(TermList t)
   CALL("canInductOn");
 
   static bool complexTermsAllowed = env.options->inductionOnComplexTerms();
-  return skolem(t) || (complexTermsAllowed && containsSkolem(t));
+  return t.isTerm() && t.term()->ground() && (skolem(t) || (complexTermsAllowed && containsSkolem(t)));
 }
 
 /**
@@ -410,7 +410,7 @@ void RecursionInductionSchemeGenerator::addScheme(Literal* lit, Term* t, const I
   for (unsigned i = 0; i < t->arity(); i++) {
     auto arg = *t->nthArgument(i);
     if (indPos[i]) {
-      if (!containsSkolem(arg)) {
+      if (arg.isVar() || !arg.term()->ground() || !containsSkolem(arg)) {
         return;
       }
       auto it = varMap.find(arg);
