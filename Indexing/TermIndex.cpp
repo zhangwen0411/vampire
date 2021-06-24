@@ -175,16 +175,9 @@ void IHLHSIndex::handleClause(Clause* c, bool adding)
     if (!c->isInductionLiteral(lit, sig)) {
       continue;
     }
-    static const bool ordered = _opt.inductionHypRewritingOrdered();
-    TermIterator lhsi;
-    if (ordered) {
-      lhsi = EqHelper::getLHSIterator(lit, _ord);
-    } else {
-      lhsi = EqHelper::getEqualityArgumentIterator(lit);
-    }
+    TermIterator lhsi = EqHelper::getEqualityArgumentIterator(lit);
     while (lhsi.hasNext()) {
-      TermList rhs = lhsi.next();
-      TermList lhs = EqHelper::getOtherEqualitySide(lit, rhs);
+      TermList lhs = lhsi.next();
       if (adding) {
 	      _is->insert(lhs, lit, c);
       } else {

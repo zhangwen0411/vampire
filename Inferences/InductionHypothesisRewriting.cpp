@@ -65,9 +65,10 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
   }
   vset<unsigned> sig;
   if (premise->isInductionLiteral(lit, sig)) {
-    if (lit->isNegative()) {
-      for (unsigned k = 0; k <= 1; k++) {
-        auto litarg = *lit->nthArgument(k);
+    TermIterator lhsi = EqHelper::getEqualityArgumentIterator(lit);
+    while (lhsi.hasNext()) {
+      TermList litarg = lhsi.next();
+      if (lit->isNegative()) {
         NonVariableIterator sti(litarg.term(), true);
         while (sti.hasNext()) {
           auto t = sti.next();
@@ -87,20 +88,9 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
               perform(sigUsed, premise, lit, litarg, t, qr.clause, qr.literal, qr.term, qr.substitution, true)));
           }
         }
-      }
-    } else if (lit->isPositive()) {
-      ASS(sig.size() == 1);
-      unsigned sigUsed = *sig.begin();
-      static const bool ordered = env.options->inductionHypRewritingOrdered();
-      TermIterator lhsi;
-      if (ordered) {
-        lhsi = EqHelper::getLHSIterator(lit, _salg->getOrdering());
       } else {
-        lhsi = EqHelper::getEqualityArgumentIterator(lit);
-      }
-      while (lhsi.hasNext()) {
-        TermList lhs = lhsi.next();
-        TermList litarg = EqHelper::getOtherEqualitySide(lit, lhs);
+        ASS(sig.size() == 1);
+        unsigned sigUsed = *sig.begin();
         auto ts = _stIndex->getInstances(litarg);
         while (ts.hasNext()) {
           auto qr = ts.next();
@@ -148,6 +138,13 @@ ClauseIterator InductionHypothesisRewriting::perform(unsigned sig,
   ASS(!eqLHS.isVar());
 
   TermList tgtTerm = EqHelper::getOtherEqualitySide(eqLit, eqLHS);
+  TermList otherSide = EqHelper::getOtherEqualitySide(rwLit, rwSide);
+  Ordering& ordering = _salg->getOrdering();
+  // check that we are rewriting either against the order or the smaller side
+  if (!Ordering::isGorGEorE(ordering.compare(tgtTerm,eqLHS))
+    && !Ordering::isGorGEorE(ordering.compare(otherSide,rwSide))) {
+    return res;
+  }
 
   TermList tgtTermS;
   if ((eqIsResult && !subst->isIdentityOnQueryWhenResultBound()) || (!eqIsResult && !subst->isIdentityOnResultWhenQueryBound())) {
