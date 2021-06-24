@@ -136,27 +136,25 @@ public:
     return _functionDefLitOrientationMap->find(lit) && _functionDefLitOrientationMap->get(lit);
   }
 
-  DHMap<Literal*,tuple<vset<unsigned>,bool,bool>>*& inductionInfo() {
+  DHMap<Literal*,vset<unsigned>>*& inductionInfo() {
     return _inductionHypothesisMap;
   }
-  void markInductionLiteral(unsigned sig, Literal* lit, bool hyp, bool reversed) {
+  void markInductionLiteral(unsigned sig, Literal* lit) {
     if (!_inductionHypothesisMap) {
-      _inductionHypothesisMap = new DHMap<Literal*,tuple<vset<unsigned>,bool,bool>>();
+      _inductionHypothesisMap = new DHMap<Literal*,vset<unsigned>>();
     }
     if (!_inductionHypothesisMap->find(lit)) {
       vset<unsigned> s;
       s.insert(sig);
-      _inductionHypothesisMap->insert(lit, make_tuple(s, hyp, reversed));
+      _inductionHypothesisMap->insert(lit, s);
     } else {
-      get<0>(_inductionHypothesisMap->get(lit)).insert(sig);
+      _inductionHypothesisMap->get(lit).insert(sig);
     }
   }
-  bool isInductionLiteral(Literal* lit, vset<unsigned>& sig, bool& hyp, bool& reversed) const {
+
+  bool isInductionLiteral(Literal* lit, vset<unsigned>& sig) const {
     if (!_inductionHypothesisMap || !_inductionHypothesisMap->find(lit)) { return false; }
-    auto temp = _inductionHypothesisMap->get(lit);
-    sig = get<0>(temp);
-    hyp = get<1>(temp);
-    reversed = get<2>(temp);
+    sig = _inductionHypothesisMap->get(lit);
     return true;
   }
 
@@ -455,7 +453,7 @@ protected:
 //#endif
 
   DHMap<Literal*,bool>* _functionDefLitOrientationMap;
-  DHMap<Literal*,tuple<vset<unsigned>,bool,bool>>* _inductionHypothesisMap;
+  DHMap<Literal*,vset<unsigned>>* _inductionHypothesisMap;
   /** Array of literals of this unit */
   Literal* _literals[1];
 }; // class Clause

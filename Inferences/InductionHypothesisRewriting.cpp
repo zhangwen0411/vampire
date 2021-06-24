@@ -64,10 +64,8 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
     return res;
   }
   vset<unsigned> sig;
-  bool hyp, rev;
-  if (premise->isInductionLiteral(lit, sig, hyp, rev)) {
-    static const bool fixSides = env.options->inductionHypRewritingFixSides();
-    if (!hyp) {
+  if (premise->isInductionLiteral(lit, sig)) {
+    if (lit->isNegative()) {
       for (unsigned k = 0; k <= 1; k++) {
         auto litarg = *lit->nthArgument(k);
         NonVariableIterator sti(litarg.term(), true);
@@ -77,17 +75,12 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
           while (ts.hasNext()) {
             auto qr = ts.next();
             vset<unsigned> sigOther;
-            bool hypOther = false, revOther;
-            bool ind = qr.clause->isInductionLiteral(qr.literal, sigOther, hypOther, revOther);
-            if (!ind || !hypOther) {
+            if (!qr.clause->isInductionLiteral(qr.literal, sigOther)) {
               continue;
             }
             ASS(sigOther.size() == 1);
             unsigned sigUsed = *sigOther.begin();
             if (!sig.count(sigUsed)) {
-              continue;
-            }
-            if (fixSides && (qr.term == *qr.literal->nthArgument(k)) != (rev == revOther)) {
               continue;
             }
             res = pvi(getConcatenatedIterator(res,
@@ -112,9 +105,7 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
         while (ts.hasNext()) {
           auto qr = ts.next();
           vset<unsigned> sigOther;
-          bool hypOther = false, revOther;
-          bool ind = qr.clause->isInductionLiteral(qr.literal, sigOther, hypOther, revOther);
-          if (!ind || hypOther) {
+          if (!qr.clause->isInductionLiteral(qr.literal, sigOther)) {
             continue;
           }
           if (!sigOther.count(sigUsed)) {
@@ -123,9 +114,6 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
           for (unsigned k = 0; k <= 1; k++) {
             auto side = *qr.literal->nthArgument(k);
             if (!side.containsSubterm(qr.term)) {
-              continue;
-            }
-            if (fixSides && ((litarg == *lit->nthArgument(1)) == k) != (rev == revOther)) {
               continue;
             }
             res = pvi(getConcatenatedIterator(res,
@@ -267,9 +255,9 @@ ClauseIterator InductionHypothesisRewriting::perform(unsigned sig,
     newCl = temp;
     newCl->setStore(Clause::ACTIVE);
   }
-  newCl->inductionInfo() = new DHMap<Literal*,tuple<vset<unsigned>,bool,bool>>(*rwClause->inductionInfo());
+  newCl->inductionInfo() = new DHMap<Literal*,vset<unsigned>>(*rwClause->inductionInfo());
   newCl->inductionInfo()->insert(tgtLitS, newCl->inductionInfo()->get(rwLit));
-  get<0>(newCl->inductionInfo()->get(tgtLitS)).erase(sig);
+  newCl->inductionInfo()->get(tgtLitS).erase(sig);
   res = pvi(getConcatenatedIterator(generateClauses(tgtLitS, newCl), _induction->generateClauses(newCl)));
   newCl->setStore(Clause::NONE);
 

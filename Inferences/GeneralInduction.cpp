@@ -208,7 +208,6 @@ void GeneralInduction::generateClauses(
 
   vvector<LiteralStack> lits(1);
   vmap<Literal*, Literal*> hypToConcMap;
-  vmap<Literal*, bool> reversedLitMap;
 
   for (const auto& c : scheme.cases()) {
     vvector<LiteralStack> newLits;
@@ -216,7 +215,6 @@ void GeneralInduction::generateClauses(
     auto v2sk = skolemizeCase(c);
     auto newMainLit = replaceLit(c._step, occurrences, mainLit.literal, sideLits, v2sk, lits, newLits);
     ASS_NEQ(newMainLit, mainLit.literal);
-    reversedLitMap.insert(make_pair(newMainLit, newMainLit->isOrientedReversed()));
 
     for (const auto& kv : sideLits) {
       replaceLit(c._step, occurrences, kv.first, sideLits, v2sk, lits, newLits);
@@ -225,7 +223,6 @@ void GeneralInduction::generateClauses(
     for (const auto& r : c._recursiveCalls) {
       auto newHypLit = replaceLit(r, occurrences, mainLit.literal, sideLits, v2sk, lits, newLits, true);
       ASS_NEQ(newHypLit, mainLit.literal);
-      reversedLitMap.insert(make_pair(newHypLit, newHypLit->isOrientedReversed()));
       if (env.options->inductionHypRewriting()) {
         hypToConcMap.insert(make_pair(newHypLit, newMainLit));
       }
@@ -277,10 +274,10 @@ void GeneralInduction::generateClauses(
     auto h = Hash::hash(kv);
     for (auto& c : temp) {
       if (c->contains(kv.first)) {
-        c->markInductionLiteral(h, kv.first, true, reversedLitMap[kv.first]);
+        c->markInductionLiteral(h, kv.first);
       }
       if (c->contains(kv.second)) {
-        c->markInductionLiteral(h, kv.second, false, reversedLitMap[kv.second]);
+        c->markInductionLiteral(h, kv.second);
       }
     }
   }
@@ -431,16 +428,14 @@ inline bool mainLitCondition(Literal* literal) {
 
 inline bool sideLitCondition(Literal* main, Clause* mainCl, Literal* side, Clause* sideCl) {
   vset<unsigned> sig, sigOther;
-  bool hyp, rev, hypOther, revOther;
   return side->ground() &&
-    // side->isPositive() &&
     env.options->inductionMultiClause() &&
     main != side &&
     mainCl != sideCl &&
     ((!mainCl->inference().inductionDepth() && !sideCl->inference().inductionDepth()) ||
-    (sideCl->isInductionLiteral(side, sigOther, hypOther, revOther) &&
-      mainCl->isInductionLiteral(main, sig, hyp, rev) &&
-      includes(sig.begin(), sig.end(), sigOther.begin(), sigOther.end()) && !hyp && hypOther && !main->isEquality()));
+    (sideCl->isInductionLiteral(side, sigOther) &&
+      mainCl->isInductionLiteral(main, sig) &&
+      includes(sig.begin(), sig.end(), sigOther.begin(), sigOther.end()) && !main->isEquality()));
 }
 
 vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> GeneralInduction::selectMainSidePairs(Literal* literal, Clause* premise)

@@ -48,15 +48,14 @@ namespace Inferences {
     while ((*c)[i] != a) { i++; }
     std::memcpy(res->literals(), c->literals(), length * sizeof(Literal*));
     if (c->inductionInfo()) {
-      res->inductionInfo() = new DHMap<Literal*,tuple<vset<unsigned>,bool,bool>>(*c->inductionInfo());
+      res->inductionInfo() = new DHMap<Literal*,vset<unsigned>>(*c->inductionInfo());
       res->inductionInfo()->remove(a);
     }
     (*res)[i] = b;
     vset<unsigned> sig;
-    bool hyp, rev;
-    if (c->isInductionLiteral(a, sig, hyp, rev)) {
+    if (c->isInductionLiteral(a, sig)) {
       for (const auto& s : sig) {
-        res->markInductionLiteral(s, b, hyp, rev ^ b->isOrientedReversed());
+        res->markInductionLiteral(s, b);
       }
     }
 
@@ -78,7 +77,7 @@ namespace Inferences {
     std::memcpy(res->literals() + i, c->literals() + i + 1, (length - i - 1) * sizeof(Literal*));
 
     if (c->inductionInfo()) {
-      res->inductionInfo() = new DHMap<Literal*,tuple<vset<unsigned>,bool,bool>>(*c->inductionInfo());
+      res->inductionInfo() = new DHMap<Literal*,vset<unsigned>>(*c->inductionInfo());
       res->inductionInfo()->remove((*c)[i]);
     }
 
@@ -311,16 +310,15 @@ namespace Inferences {
         while ((*c)[i] != lit) { i++; }
         std::memcpy(res->literals(), c->literals(), length * sizeof(Literal*));
         if (c->inductionInfo()) {
-          res->inductionInfo() = new DHMap<Literal*,tuple<vset<unsigned>,bool,bool>>(*c->inductionInfo());
+          res->inductionInfo() = new DHMap<Literal*,vset<unsigned>>(*c->inductionInfo());
           res->inductionInfo()->remove(lit);
         }
         (*res)[i] = newLit;
         vset<unsigned> sig;
-        bool hyp, rev;
-        auto ind = c->isInductionLiteral(lit, sig, hyp, rev);
+        auto ind = c->isInductionLiteral(lit, sig);
         if (ind) {
           for (const auto& s : sig) {
-            res->markInductionLiteral(s, newLit, hyp, rev ^ newLit->isOrientedReversed());
+            res->markInductionLiteral(s, newLit);
           }
         }
         
@@ -332,7 +330,7 @@ namespace Inferences {
           (*res)[oldLength + i - 1] = newLit;
           if (ind && type->arg(i) == type->result()) {
             for (const auto& s : sig) {
-              res->markInductionLiteral(s, newLit, hyp, rev ^ newLit->isOrientedReversed());
+              res->markInductionLiteral(s, newLit);
             }
           }
         }

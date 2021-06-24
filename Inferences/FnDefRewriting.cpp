@@ -242,10 +242,9 @@ Clause *FnDefRewriting::perform(
   static bool doSimS = env.options->simulatenousSuperposition();
   (*res)[0] = tgtLitS;
 	vset<unsigned> sig;
-	bool hyp, rev;
-	if (rwClause->isInductionLiteral(rwLit, sig, hyp, rev)) {
+	if (rwClause->isInductionLiteral(rwLit, sig)) {
     for (const auto& s : sig) {
-		  res->markInductionLiteral(s, tgtLitS, hyp, rev ^ tgtLitS->isOrientedReversed());
+		  res->markInductionLiteral(s, tgtLitS);
     }
 	}
 
@@ -253,7 +252,7 @@ Clause *FnDefRewriting::perform(
   for (unsigned i = 0; i < rwLength; i++) {
     Literal *curr = (*rwClause)[i];
     if (curr != rwLit) {
-      auto ind = rwClause->isInductionLiteral(curr, sig, hyp, rev);
+      auto ind = rwClause->isInductionLiteral(curr, sig);
       if (doSimS) {
         curr = EqHelper::replace(curr, rwTerm, tgtTermS);
       }
@@ -266,7 +265,7 @@ Clause *FnDefRewriting::perform(
       (*res)[next++] = curr;
       if (ind) {
         for (const auto& s : sig) {
-          res->markInductionLiteral(s, curr, hyp, rev ^ curr->isOrientedReversed());
+          res->markInductionLiteral(s, curr);
         }
       }
     }

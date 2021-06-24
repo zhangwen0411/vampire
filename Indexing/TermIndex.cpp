@@ -168,13 +168,11 @@ void IHLHSIndex::handleClause(Clause* c, bool adding)
 
   for (unsigned i = 0; i < c->length(); i++) {
     Literal* lit=(*c)[i];
-    if (!lit->isEquality() || !lit->isPositive()) {
+    if (!lit->isEquality() || lit->isNegative()) {
       continue;
     }
     vset<unsigned> sig;
-    bool hyp = false, rev;
-    bool ind = c->isInductionLiteral(lit, sig, hyp, rev);
-    if (!ind || !hyp) {
+    if (!c->isInductionLiteral(lit, sig)) {
       continue;
     }
     static const bool ordered = _opt.inductionHypRewritingOrdered();
@@ -211,16 +209,13 @@ void ICSubtermIndex::handleClause(Clause* c, bool adding)
   for (unsigned i = 0; i < c->length(); i++) {
     inserted.reset();
     Literal* lit=(*c)[i];
-    if (!lit->isEquality()) {
+    if (!lit->isEquality() || lit->isPositive()) {
       continue;
     }
     vset<unsigned> sig;
-    bool hyp = true, rev;
-    bool ind = c->isInductionLiteral(lit, sig, hyp, rev);
-    if (!ind || hyp) {
+    if (!c->isInductionLiteral(lit, sig)) {
       continue;
     }
-    ASS(lit->isEquality());
     NonVariableIterator nvi(lit);
     while (nvi.hasNext()) {
       TermList t=nvi.next();

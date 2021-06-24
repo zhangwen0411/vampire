@@ -1229,13 +1229,6 @@ void Options::init()
             _inductionHypRewritingOrdered.tag(OptionTag::INFERENCES);
             _lookup.insert(&_inductionHypRewritingOrdered);
 
-            _inductionHypRewritingFixSides = BoolOptionValue("induction_hypothesis_rewriting_fix_sides","indhrwfs",true);
-            _inductionHypRewritingFixSides.description = "Fix orientation of induction conclusions (IC) and their hypotheses (IH) w.r.t. the"
-                                                 " literal they were generated from. In this orientation, if l=r is IH and s=t is IC,"
-                                                 " only allow rewriting l into r in subterms of s";
-            _inductionHypRewritingFixSides.tag(OptionTag::INFERENCES);
-            _lookup.insert(&_inductionHypRewritingFixSides);
-
             _inductionMultiClause = BoolOptionValue("induction_multiclause","indmc",true);
             _inductionMultiClause.description = "Induct on multiple clauses together when they contain the same induction terms";
             _inductionMultiClause.tag(OptionTag::INFERENCES);

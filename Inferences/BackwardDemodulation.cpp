@@ -210,10 +210,9 @@ struct BackwardDemodulation::ResultFn
 
     (*res)[0]=resLit;
     vset<unsigned> sig;
-    bool hyp, rev;
-    if (qr.clause->isInductionLiteral(qr.literal, sig, hyp, rev)) {
+    if (qr.clause->isInductionLiteral(qr.literal, sig)) {
       for (const auto& s : sig) {
-        res->markInductionLiteral(s, resLit, hyp, rev ^ resLit->isOrientedReversed());
+        res->markInductionLiteral(s, resLit);
       }
     }
 
@@ -222,9 +221,9 @@ struct BackwardDemodulation::ResultFn
       Literal* curr=(*qr.clause)[i];
       if(curr!=qr.literal) {
         (*res)[next++] = curr;
-        if (qr.clause->isInductionLiteral(curr, sig, hyp, rev)) {
+        if (qr.clause->isInductionLiteral(curr, sig)) {
           for (const auto& s : sig) {
-            res->markInductionLiteral(s, curr, hyp, rev);
+            res->markInductionLiteral(s, curr);
           }
         }
       }

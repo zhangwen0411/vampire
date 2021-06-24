@@ -536,10 +536,9 @@ Clause* TrivialInequalitiesRemovalISE::simplify(Clause* c)
   for (int i = newLength-1;i >= 0;i--) {
     (*d)[i] = lits[newLength-i-1];
     vset<unsigned> sig;
-    bool hyp, rev;
-    if (c->isInductionLiteral(lits[newLength-i-1], sig, hyp, rev)) {
+    if (c->isInductionLiteral(lits[newLength-i-1], sig)) {
       for (const auto& s : sig) {
-        d->markInductionLiteral(s, lits[newLength-i-1], hyp, rev);
+        d->markInductionLiteral(s, lits[newLength-i-1]);
       }
     }
   }

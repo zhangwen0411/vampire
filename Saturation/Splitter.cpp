@@ -1302,10 +1302,9 @@ Clause* Splitter::buildAndInsertComponentClause(SplitLevel name, unsigned size, 
   while (it.hasNext()) {
     auto lit = it.next();
     vset<unsigned> sig;
-    bool hyp, rev;
-    if (orig->isInductionLiteral(lit, sig, hyp, rev)) {
+    if (orig->isInductionLiteral(lit, sig)) {
       for (const auto& s : sig) {
-        compCl->markInductionLiteral(s, lit, hyp, rev);
+        compCl->markInductionLiteral(s, lit);
       }
     }
   }
