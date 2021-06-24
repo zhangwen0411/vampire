@@ -2230,7 +2230,6 @@ public:
   bool inductionOnComplexTerms() const {return _inductionOnComplexTerms.actualValue;}
   bool inductionOnComplexTermsHeuristic() const { return _inductionOnComplexTermsHeur.actualValue; }
   bool inductionHypRewriting() const { return _inductionHypRewriting.actualValue; }
-  bool inductionHypRewritingOrdered() const { return _inductionHypRewritingOrdered.actualValue; }
   bool inductionMultiClause() const { return _inductionMultiClause.actualValue; }
   bool inductionExhaustiveGeneration() const { return _inductionExhaustiveGeneration.actualValue; }
   bool functionDefinitionDiscovery() const { return _functionDefinitionDiscovery.actualValue; }
@@ -2567,7 +2566,6 @@ private:
   BoolOptionValue _inductionOnComplexTerms;
   BoolOptionValue _inductionOnComplexTermsHeur;
   BoolOptionValue _inductionHypRewriting;
-  BoolOptionValue _inductionHypRewritingOrdered;
   BoolOptionValue _inductionMultiClause;
   BoolOptionValue _inductionExhaustiveGeneration;
   BoolOptionValue _functionDefinitionDiscovery;

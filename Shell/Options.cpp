@@ -1224,11 +1224,6 @@ void Options::init()
             _inductionHypRewriting.tag(OptionTag::INFERENCES);
             _lookup.insert(&_inductionHypRewriting);
 
-            _inductionHypRewritingOrdered = BoolOptionValue("induction_hypothesis_rewriting_ordered","indhrwo",true);
-            _inductionHypRewritingOrdered.description = "Only use induction hypothesis rewriting against the ordering";
-            _inductionHypRewritingOrdered.tag(OptionTag::INFERENCES);
-            _lookup.insert(&_inductionHypRewritingOrdered);
-
             _inductionMultiClause = BoolOptionValue("induction_multiclause","indmc",true);
             _inductionMultiClause.description = "Induct on multiple clauses together when they contain the same induction terms";
             _inductionMultiClause.tag(OptionTag::INFERENCES);
