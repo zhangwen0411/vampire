@@ -301,7 +301,7 @@ Index* IndexManager::create(IndexType t)
     isGenerating = true;
     break;
   case IH_LHS_SUBST_TREE:
-    tis=new CodeTreeTIS();
+    tis=new TermSubstitutionTree();
     res=new IHLHSIndex(tis, _alg->getOrdering(), _alg->getOptions());
     isGenerating = true;
     break;

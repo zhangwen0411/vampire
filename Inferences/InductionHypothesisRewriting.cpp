@@ -76,7 +76,7 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
         NonVariableIterator sti(litarg.term(), true);
         while (sti.hasNext()) {
           auto t = sti.next();
-          auto ts = _lhsIndex->getGeneralizations(t);
+          auto ts = _lhsIndex->getUnifications(t);
           while (ts.hasNext()) {
             auto qr = ts.next();
             vset<unsigned> sigOther;
@@ -111,7 +111,7 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
       while (lhsi.hasNext()) {
         TermList lhs = lhsi.next();
         TermList litarg = EqHelper::getOtherEqualitySide(lit, lhs);
-        auto ts = _stIndex->getInstances(litarg);
+        auto ts = _stIndex->getUnifications(litarg);
         while (ts.hasNext()) {
           auto qr = ts.next();
           vset<unsigned> sigOther;
@@ -163,33 +163,19 @@ ClauseIterator InductionHypothesisRewriting::perform(unsigned sig,
   ASS(!eqLHS.isVar());
 
   TermList tgtTerm = EqHelper::getOtherEqualitySide(eqLit, eqLHS);
+  TermList tgtTermS = subst->apply(tgtTerm, eqIsResult);
 
-  TermList tgtTermS;
-  if ((eqIsResult && !subst->isIdentityOnQueryWhenResultBound()) || (!eqIsResult && !subst->isIdentityOnResultWhenQueryBound())) {
-    //When we apply substitution to the rhs, we get a term, that is
-    //a variant of the term we'd like to get, as new variables are
-    //produced in the substitution application.
-    TermList lhsSBadVars = subst->apply(eqLHS, eqIsResult);
-    TermList rhsSBadVars = subst->apply(tgtTerm, eqIsResult);
-    Renaming rNorm, qNorm, qDenorm;
-    rNorm.normalizeVariables(lhsSBadVars);
-    qNorm.normalizeVariables(tgtTerm);
-    qDenorm.makeInverse(qNorm);
-    ASS_EQ(rwTerm, qDenorm.apply(rNorm.apply(lhsSBadVars)));
-    tgtTermS = qDenorm.apply(rNorm.apply(rhsSBadVars));
-  }
-  else {
-    tgtTermS = eqIsResult ? subst->applyToBoundResult(tgtTerm) : subst->applyToBoundQuery(tgtTerm);
-  }
-
-  TermList rwSideS(EqHelper::replace(rwSide.term(), rwTerm, tgtTermS));
+  Literal* rwLitS = subst->apply(rwLit, !eqIsResult);
+  TermList rwTermS = subst->apply(rwTerm, !eqIsResult);
+  TermList rwSideS = subst->apply(rwSide, !eqIsResult);
+  TermList rwSideSR(EqHelper::replace(rwSideS.term(), rwTermS, tgtTermS));
   if (rwSide == rwTerm) {
-    rwSideS = tgtTermS;
+    rwSideSR = tgtTermS;
   }
   Stack<TermList> args;
-  args.push(rwSideS);
-  args.push(EqHelper::getOtherEqualitySide(rwLit, rwSide));
-  Literal *tgtLitS = Literal::create(rwLit, args.begin());
+  args.push(rwSideSR);
+  args.push(EqHelper::getOtherEqualitySide(rwLitS, rwSideS));
+  Literal *tgtLitS = Literal::create(rwLitS, args.begin());
 
   // cout << "HYP: " << *eqLit << endl
   //      << "SRC: " << eqLHS << endl
@@ -217,6 +203,7 @@ ClauseIterator InductionHypothesisRewriting::perform(unsigned sig,
       // if (doSimS) {
       //   curr = EqHelper::replace(curr, rwTerm, tgtTermS);
       // }
+      curr = subst->apply(curr, !eqIsResult);
 
       if (EqHelper::isEqTautology(curr)) {
         newCl->destroy();
@@ -231,22 +218,7 @@ ClauseIterator InductionHypothesisRewriting::perform(unsigned sig,
     for (unsigned i = 0; i < eqLength; i++) {
       Literal *curr = (*eqClause)[i];
       if (curr != eqLit) {
-        Literal *currAfter;
-        if ((eqIsResult && !subst->isIdentityOnQueryWhenResultBound()) || (!eqIsResult && !subst->isIdentityOnResultWhenQueryBound())) {
-          // same as above for RHS
-          TermList lhsSBadVars = subst->apply(eqLHS, eqIsResult);
-          Literal *currSBadVars = subst->apply(curr, eqIsResult);
-          Renaming rNorm, qNorm, qDenorm;
-          rNorm.normalizeVariables(lhsSBadVars);
-          qNorm.normalizeVariables(curr);
-          qDenorm.makeInverse(qNorm);
-          ASS_EQ(rwTerm, qDenorm.apply(rNorm.apply(lhsSBadVars)));
-          currAfter = qDenorm.apply(rNorm.apply(currSBadVars));
-        }
-        else {
-          currAfter = eqIsResult ? subst->applyToBoundResult(curr) : subst->applyToBoundQuery(curr);
-        }
-
+        Literal *currAfter = subst->apply(curr, eqIsResult);
         if (EqHelper::isEqTautology(currAfter)) {
           newCl->destroy();
           return res;

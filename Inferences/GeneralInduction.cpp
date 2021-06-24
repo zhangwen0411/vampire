@@ -103,6 +103,7 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
     static vvector<pair<InductionScheme, OccurrenceMap>> schOccMap;
     schOccMap.clear();
     StructuralInductionSchemeGenerator gen;
+    // RecursionInductionSchemeGenerator gen;
     gen.generate(main, sides, schOccMap);
     vvector<pair<Literal*, vset<Literal*>>> schLits;
     for (const auto& kv : schOccMap) {
@@ -123,8 +124,9 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
       if (alreadyDone(literal, sidesFiltered, kv.first, schLits.back())) {
         continue;
       }
-      static const bool heuristic = env.options->inductionGenHeur();
       NoGeneralizationIterator g(kv.second);
+      // static const bool heuristic = env.options->inductionGenHeur();
+      // GeneralizationIterator g(kv.second, heuristic);
       while (g.hasNext()) {
         auto eg = g.next();
         generateClauses(kv.first, eg, main, sidesFiltered, res._clauses);
