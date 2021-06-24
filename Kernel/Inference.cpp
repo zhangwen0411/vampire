@@ -882,6 +882,8 @@ vstring Kernel::ruleName(InferenceRule rule)
     return "instance generation";
   case InferenceRule::UNIT_RESULTING_RESOLUTION:
     return "unit resulting resolution";
+  case InferenceRule::ANSWER_LITERAL_ELIM:
+    return "answer literal elimination";
   case InferenceRule::HYPER_SUPERPOSITION_SIMPLIFYING:
   case InferenceRule::HYPER_SUPERPOSITION_GENERATING:
     return "hyper superposition";

@@ -31,6 +31,8 @@
 #include "Indexing/Index.hpp"
 #include "Indexing/LiteralIndexingStructure.hpp"
 
+#include "Inferences/BinaryResolution.hpp"
+
 #include "Shell/Flattening.hpp"
 #include "Shell/Options.hpp"
 
@@ -40,11 +42,115 @@
 namespace Shell
 {
 
+bool isAnswerLiteral(Literal* lit)
+{
+  unsigned pred = lit->functor();
+  if (pred >= env.signature->predicates()) {
+    return false;
+  }
+  Signature::Symbol* sym = env.signature->getPredicate(pred);
+  return sym->answerPredicate();
+}
+
+void getAnswer(Clause* refutation, Stack<TermList>& answer)
+{
+  InferenceStore& is = *InferenceStore::instance();
+
+  Stack<pair<Clause*, LiteralStack>> toDo;
+  toDo.push(make_pair(refutation, LiteralStack()));
+
+  while(toDo.isNonEmpty()) {
+    auto curr = toDo.pop();
+    auto cl = curr.first;
+    auto lits = curr.second;
+    InferenceRule infRule;
+    UnitIterator parents = is.getParents(cl, infRule);
+    switch (infRule) {
+      case InferenceRule::RESOLUTION:
+      case InferenceRule::SUBSUMPTION_RESOLUTION: {
+        Clause* cl1 = parents.next()->asClause();
+        Clause* cl2 = parents.next()->asClause();
+        if (!cl1->inference().derivedFromGoal() || !cl2->inference().derivedFromGoal()) {
+          if (cl2->inference().derivedFromGoal()) {
+            toDo.push(make_pair(cl2, lits));
+          } else if (cl1->inference().derivedFromGoal()) {
+            toDo.push(make_pair(cl1, lits));
+          }
+          continue;
+        }
+        int index = -1;
+        RobSubstitution subst;
+        for (unsigned i = 0; i < cl1->length(); i++) {
+          auto lit1 = (*cl1)[i];
+          for (unsigned j = 0; j < cl2->length(); j++) {
+            auto lit2 = (*cl2)[j];
+            if (lit1->polarity() != lit2->polarity()) {
+              subst.reset();
+              auto res = subst.unify(TermList(lit1), 0, TermList(lit2), 1);
+              if (!res) {
+                subst.reset();
+                res = subst.unify(*lit1->nthArgument(0), 0, *lit2->nthArgument(1), 1) &&
+                  subst.unify(*lit1->nthArgument(1), 0, *lit2->nthArgument(0), 1);
+              }
+              if (res) {
+                index = i;
+                break;
+              }
+            }
+          }
+          if (index >= 0) {
+            break;
+          }
+        }
+        ASS(index >= 0);
+        auto litS = subst.apply((*cl1)[index],0);
+        auto lits1 = lits;
+        lits1.push(litS);
+        auto lits2 = lits;
+        lits2.push(Literal::complementaryLiteral(litS));
+        toDo.push(make_pair(cl1, lits1));
+        toDo.push(make_pair(cl2, lits2));
+        break;
+      }
+      case InferenceRule::ANSWER_LITERAL_ELIM: {
+        Unit* premise = parents.next();
+        Clause* prCl = premise->asClause();
+        for (unsigned i = 0; i < prCl->length(); i++) {
+          auto lit = (*prCl)[i];
+          if (isAnswerLiteral(lit) && lit->ground()) {
+            lits.push(lit);
+            auto cl = Clause::fromStack(lits, TheoryAxiom(InferenceRule::GENERIC_THEORY_AXIOM));
+            lits.pop();
+            cout << *cl << endl;
+          }
+        }
+        toDo.push(make_pair(prCl, lits));
+        break;
+      }
+      default: {
+        while(parents.hasNext()) {
+          Unit* premise = parents.next();
+          auto found = false;
+          if (premise->isClause()) {
+            ASS(!found);
+            found = true;
+            toDo.push(make_pair(premise->asClause(), lits));
+          }
+        }
+        break;
+      }
+    }
+  }
+}
+
 void AnswerExtractor::tryOutputAnswer(Clause* refutation)
 {
   CALL("AnswerExtractor::tryOutputAnswer");
 
   Stack<TermList> answer;
+
+  getAnswer(refutation, answer);
+  return;
 
   if(!AnswerLiteralManager::getInstance()->tryGetAnswer(refutation, answer)) {
     ConjunctionGoalAnswerExractor cge;
@@ -327,28 +433,31 @@ bool AnswerLiteralManager::tryGetAnswer(Clause* refutation, Stack<TermList>& ans
   return false;
 }
 
-Literal* AnswerLiteralManager::getAnswerLiteral(VList* vars,Formula* f)
+Literal* AnswerLiteralManager::getAnswerLiteral(unsigned var, VList* uVars, Formula* f)
 {
   CALL("AnswerLiteralManager::getAnswerLiteral");
 
   static Stack<TermList> litArgs;
   litArgs.reset();
-  VList::Iterator vit(vars);
-  TermStack sorts;
-  while(vit.hasNext()) {
-    unsigned var = vit.next();
+  auto pred = env.signature->addFreshPredicate(VList::length(uVars)+1,"ans");
+  Signature::Symbol* sym = env.signature->getPredicate(pred);
+  TermList ansSort;
+  ALWAYS(SortHelper::tryGetVariableSort(var,f,ansSort));
+  Stack<TermList> args;
+  Stack<TermList> sorts;
+  while (uVars) {
+    auto var = uVars->head();
+    args.push(TermList(var, false));
     TermList sort;
-    ALWAYS(SortHelper::tryGetVariableSort(var,f,sort));
+    ALWAYS(SortHelper::tryGetVariableSort(var, f, sort));
     sorts.push(sort);
-    litArgs.push(TermList(var, false));
+    uVars = uVars->tail();
   }
-
-  unsigned vcnt = litArgs.size();
-  unsigned pred = env.signature->addFreshPredicate(vcnt,"ans");
-  Signature::Symbol* predSym = env.signature->getPredicate(pred);
-  predSym->setType(OperatorType::getPredicateType(sorts.size(), sorts.begin()));
-  predSym->markAnswerPredicate();
-  return Literal::create(pred, vcnt, true, false, litArgs.begin());
+  args.push(TermList(var, false));
+  sorts.push(ansSort);
+  sym->setType(OperatorType::getPredicateType(sorts.size(), sorts.begin()));
+  sym->markAnswerPredicate();
+  return Literal::create(pred, args.size(), false, false, args.begin());
 }
 
 Unit* AnswerLiteralManager::tryAddingAnswerLiteral(Unit* unit)
@@ -362,21 +471,38 @@ Unit* AnswerLiteralManager::tryAddingAnswerLiteral(Unit* unit)
   FormulaUnit* fu = static_cast<FormulaUnit*>(unit);
   Formula* form = fu->formula();
 
-  if(form->connective()!=NOT || form->uarg()->connective()!=EXISTS) {
+  if(form->connective()!=NOT) {
     return unit;
   }
 
-  Formula* quant =form->uarg();
-  VList* vars = quant->vars();
-  ASS(vars);
+  form = form->uarg();
+  VList* uVars = VList::empty();
+  if (form->connective() == FORALL) {
+    uVars = form->vars();
+    form = form->qarg();
+  }
+  if (form->connective() != EXISTS) {
+    return unit;
+  }
+
+  VList* eVars = form->vars();
+  form = form->qarg();
+  ASS(eVars);
 
   FormulaList* conjArgs = 0;
-  FormulaList::push(quant->qarg(), conjArgs);
-  Literal* ansLit = getAnswerLiteral(vars,quant);
-  FormulaList::push(new AtomicFormula(ansLit), conjArgs);
+  FormulaList::push(form, conjArgs);
+  VList::Iterator eIt(eVars);
+  while (eIt.hasNext()) {
+    auto var = eIt.next();
+    Literal* ansLit = getAnswerLiteral(var, uVars, form);
+    FormulaList::push(new AtomicFormula(ansLit), conjArgs);
+  }
 
   Formula* conj = new JunctionFormula(AND, conjArgs);
-  Formula* newQuant = new QuantifiedFormula(EXISTS, vars, 0,conj);
+  Formula* newQuant = new QuantifiedFormula(EXISTS, eVars, 0, conj);
+  if (uVars) {
+    newQuant = new QuantifiedFormula(FORALL, uVars, 0, newQuant);
+  }
   Formula* newForm = new NegatedFormula(newQuant);
 
   newForm = Flattening::flatten(newForm);

@@ -272,7 +272,8 @@ VI_OBJ = Indexing/AcyclicityIndex.o\
 VIG_OBJ = InstGen/IGAlgorithm.o\
           InstGen/ModelPrinter.o
 
-VINF_OBJ=Inferences/BackwardDemodulation.o\
+VINF_OBJ=Inferences/AnswerResolution.o\
+         Inferences/BackwardDemodulation.o\
          Inferences/BackwardSubsumptionResolution.o\
          Inferences/BackwardSubsumptionDemodulation.o\
          Inferences/BinaryResolution.o\

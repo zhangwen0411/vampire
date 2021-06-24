@@ -66,7 +66,7 @@ public:
   void onNewClause(Clause* cl);
 
 private:
-  Literal* getAnswerLiteral(VList* vars,Formula* f);
+  Literal* getAnswerLiteral(unsigned var, VList* uVars, Formula* f);
   Unit* tryAddingAnswerLiteral(Unit* unit);
 
   Clause* getResolverClause(unsigned pred);

@@ -50,6 +50,7 @@
 #include "Inferences/DistinctEqualitySimplifier.hpp"
 
 #include "Inferences/InferenceEngine.hpp"
+#include "Inferences/AnswerResolution.hpp"
 #include "Inferences/BackwardDemodulation.hpp"
 #include "Inferences/BackwardSubsumptionResolution.hpp"
 #include "Inferences/BackwardSubsumptionDemodulation.hpp"
@@ -484,9 +485,9 @@ void SaturationAlgorithm::onNewClause(Clause* cl)
     onNewUsefulPropositionalClause(cl);
   }
 
-  if (_answerLiteralManager) {
-    _answerLiteralManager->onNewClause(cl);
-  }
+  // if (_answerLiteralManager) {
+  //   _answerLiteralManager->onNewClause(cl);
+  // }
 }
 
 void SaturationAlgorithm::onNewUsefulPropositionalClause(Clause* c)
@@ -1762,6 +1763,10 @@ ImmediateSimplificationEngine* SaturationAlgorithm::createISE(Problem& prb, cons
   CALL("MainLoop::createImmediateSE");
 
   CompositeISE* res=new CompositeISE();
+
+  if (opt.questionAnswering()==Options::QuestionAnsweringMode::ANSWER_LITERAL) {
+    res->addFront(new AnswerResolution());
+  }
 
   if(prb.hasEquality() && opt.equationalTautologyRemoval()) {
     res->addFront(new EquationalTautologyRemoval());
