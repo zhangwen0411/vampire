@@ -163,26 +163,6 @@ void GeneralInduction::detach()
   GeneratingInferenceEngine::detach();
 }
 
-Literal* replaceLit(Substitution& s, Literal* lit, const vvector<pair<Literal*, SLQueryResult>>& sideLitQrPairs,
-  const vvector<LiteralStack>& lits, vvector<LiteralStack>& newLits, bool hypothesis = false)
-{
-  auto newLit = SubstHelper::apply<Substitution>(lit, s);
-  if (hypothesis) {
-    newLit = Literal::complementaryLiteral(newLit);
-  }
-  for (auto st : lits) {
-    st.push(newLit);
-    if (hypothesis) {
-      for (const auto& kv : sideLitQrPairs) {
-        st.push(Literal::complementaryLiteral(
-          SubstHelper::apply<Substitution>(kv.first, s)));
-      }
-    }
-    newLits.push_back(st);
-  }
-  return newLit;
-}
-
 void GeneralInduction::generateClauses(
   const Shell::InductionScheme& scheme,
   Literal* mainLit, const SLQueryResult& mainQuery,
@@ -209,14 +189,30 @@ void GeneralInduction::generateClauses(
     vvector<LiteralStack> newLits;
 
     auto sk = skolemizeCase(c, scheme.inductionTerms());
-    auto newMainLit = replaceLit(sk._step, mainLit, sideLitQrPairs, lits, newLits);
+    auto newMainLit = SubstHelper::apply<Substitution>(mainLit, sk._step);
+    for (auto st : lits) {
+      st.push(newMainLit);
+      newLits.push_back(st);
+    }
 
     for (const auto& kv : sideLitQrPairs) {
-      replaceLit(sk._step, kv.first, sideLitQrPairs, lits, newLits);
+      for (auto st : lits) {
+        st.push(SubstHelper::apply<Substitution>(kv.first, sk._step));
+        newLits.push_back(st);
+      }
     }
 
     for (auto& r : sk._recursiveCalls) {
-      auto newHypLit = replaceLit(r, mainLit, sideLitQrPairs, lits, newLits, true);
+      auto newHypLit = Literal::complementaryLiteral(
+        SubstHelper::apply<Substitution>(mainLit, r));
+      for (auto st : lits) {
+        st.push(newHypLit);
+        for (const auto& kv : sideLitQrPairs) {
+          st.push(Literal::complementaryLiteral(
+            SubstHelper::apply<Substitution>(kv.first, r)));
+        }
+        newLits.push_back(st);
+      }
       if (env.options->inductionHypRewriting()) {
         hypToConcMap.insert(make_pair(newHypLit, newMainLit));
       }
