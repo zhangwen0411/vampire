@@ -75,7 +75,7 @@ bool InductionTemplate::checkWellDefinedness(vvector<vvector<TermList>>& missing
   for (auto& b : _branches) {
     cases.push_back(b._header.term());
   }
-  return InductionPreprocessor::checkWellDefinedness(cases, missingCases, var);
+  return InductionPreprocessor::checkWellDefinedness(cases, missingCases);
 }
 
 void InductionTemplate::addMissingCases(const vvector<vvector<TermList>>& missingCases)
@@ -425,7 +425,7 @@ bool InductionPreprocessor::checkWellFoundedness(const vvector<pair<TermList,Ter
   return checkWellFoundednessHelper(relatedTerms, indices, positions);
 }
 
-bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vvector<vvector<TermList>>& missingCases, unsigned& var)
+bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vvector<vvector<TermList>>& missingCases)
 {
   if (cases.empty()) {
     return false;
@@ -436,6 +436,7 @@ bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vv
     return true;
   }
   vvector<vvector<TermList>> availableTermsEmpty;
+  unsigned var = 0;
   for (unsigned i = 0; i < arity; i++) {
     vvector<TermList> v;
     v.push_back(TermList(var++, false));

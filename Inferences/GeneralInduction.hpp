@@ -128,11 +128,10 @@ private:
   void process(InductionClauseIterator& it, Clause* premise, Literal* literal);
   void generateClauses(
     const Shell::InductionScheme& scheme,
-    const OccurrenceMap& occurrences,
-    const SLQueryResult& mainLit,
-    const vset<pair<Literal*,Clause*>>& sideLits,
+    Literal* mainLit, const SLQueryResult& mainQuery,
+    const vvector<pair<Literal*,SLQueryResult>>& sideLitQrPairs,
     ClauseStack& clauses);
-  vmap<TermList, TermList> skolemizeCase(const InductionScheme::Case& c);
+  InductionScheme::Case skolemizeCase(const InductionScheme::Case& c, const vmap<TermList, unsigned>& inductionTerms);
   bool alreadyDone(Literal* mainLit, const vset<pair<Literal*,Clause*>>& sides,
     const InductionScheme& sch, pair<Literal*,vset<Literal*>>& res);
   vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> selectMainSidePairs(Literal* literal, Clause* premise);

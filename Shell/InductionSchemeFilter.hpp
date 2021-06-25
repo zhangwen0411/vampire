@@ -35,9 +35,9 @@ struct InductionSchemeFilter {
   void filter(vvector<InductionScheme>& schemes, const OccurrenceMap& actOccMaps);
 
 private:
-  void filterComplex(vvector<InductionScheme>& schemes, const OccurrenceMap& occMap);
-  bool mergeSchemes(const InductionScheme& sch1, const InductionScheme& sch2, InductionScheme& res);
-  bool checkContainment(const InductionScheme& sch1, const InductionScheme& sch2);
+  // void filterComplex(vvector<InductionScheme>& schemes, const OccurrenceMap& occMap);
+  // bool mergeSchemes(const InductionScheme& sch1, const InductionScheme& sch2, InductionScheme& res);
+  // bool checkContainment(const InductionScheme& sch1, const InductionScheme& sch2);
 };
 
 } // Shell

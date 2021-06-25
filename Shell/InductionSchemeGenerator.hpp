@@ -16,6 +16,7 @@
 #define __InductionSchemeGenerator__
 
 #include "Forwards.hpp"
+#include "Kernel/Substitution.hpp"
 #include "Kernel/Term.hpp"
 #include "Kernel/TermTransformer.hpp"
 #include "Indexing/Index.hpp"
@@ -129,13 +130,13 @@ private:
  */
 class TermOccurrenceReplacement : public TermTransformer {
 public:
-  TermOccurrenceReplacement(const vmap<TermList, TermList>& r,
+  TermOccurrenceReplacement(const vmap<TermList, unsigned>& r,
                              const OccurrenceMap& occ, Literal* lit)
                             : _r(r), _o(occ), _lit(lit) {}
   TermList transformSubterm(TermList trm) override;
 
 private:
-  const vmap<TermList, TermList>& _r;
+  const vmap<TermList, unsigned>& _r;
   OccurrenceMap _o;
   Literal* _lit;
 };
@@ -146,36 +147,36 @@ private:
 class InductionScheme
 {
 public:
+  InductionScheme(const vmap<TermList, unsigned>& indTerms)
+    : _cases(), _inductionTerms(indTerms), _finalized(false) {}
+
   struct Case {
     Case() = default;
-    Case(vvector<vmap<TermList, TermList>>&& recursiveCalls,
-                    vmap<TermList, TermList>&& step)
+    Case(vvector<Substitution>&& recursiveCalls, Substitution&& step)
       : _recursiveCalls(recursiveCalls), _step(step) {}
-    bool contains(const Case& other, unsigned& var) const;
+    bool contains(const Case& other, const vmap<TermList, unsigned>& indTerms1, const vmap<TermList, unsigned>& indTerms2) const;
 
-    vvector<vmap<TermList, TermList>> _recursiveCalls;
-    vmap<TermList, TermList> _step;
+    vvector<Substitution> _recursiveCalls;
+    Substitution _step;
   };
 
-  void addCase(vvector<vmap<TermList, TermList>>&& recursiveCalls, vmap<TermList, TermList>&& step) {
+  void addCase(vvector<Substitution>&& recursiveCalls, Substitution&& step) {
     _cases.emplace_back(std::move(recursiveCalls), std::move(step));
   }
   void addCase(Case&& c) {
     _cases.push_back(std::move(c));
   }
   bool finalize();
-  static TermList createRepresentingTerm(const vset<TermList>& inductionTerms, const vmap<TermList,TermList>& r, unsigned& var);
+  static TermList createRepresentingTerm(const vmap<TermList, unsigned>& inductionTerms, const Substitution& s);
   const vvector<Case>& cases() const { ASS(_finalized); return _cases; }
-  const vset<TermList>& inductionTerms() const { ASS(_finalized); return _inductionTerms; }
-  unsigned maxVar() const { ASS(_finalized); return _maxVar; }
+  const vmap<TermList, unsigned>& inductionTerms() const { ASS(_finalized); return _inductionTerms; }
 
 private:
   bool addBaseCases();
 
   vvector<Case> _cases;
-  unsigned _maxVar;
-  vset<TermList> _inductionTerms;
-  bool _finalized = false;
+  vmap<TermList, unsigned> _inductionTerms;
+  bool _finalized;
 };
 
 ostream& operator<<(ostream& out, const InductionScheme& scheme);
