@@ -81,8 +81,8 @@ ClauseIterator GeneralInduction::generateClauses(Clause* premise)
   return pvi(res);
 }
 
-inline bool skolem(TermList t) {
-  return t.isTerm() && env.signature->getFunction(t.term()->functor())->skolem();
+inline bool skolem(Term* t) {
+  return env.signature->getFunction(t->functor())->skolem();
 }
 
 void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Literal* literal)
@@ -109,7 +109,7 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
       vset<pair<Literal*, Clause*>> sidesFiltered;
       for (const auto& s : sides) {
         for (const auto& kv2 : kv.first.inductionTerms()) {
-          if (s.first->containsSubterm(kv2.first) && (!skolem(kv2.first) || !s.second->inference().inductionDepth())) {
+          if (s.first->containsSubterm(TermList(kv2.first)) && (!skolem(kv2.first) || !s.second->inference().inductionDepth())) {
             sidesFiltered.insert(s);
             break;
           }
@@ -124,12 +124,12 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
       while (g.hasNext()) {
         auto eg = g.next();
         TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, main.literal);
-        auto mainLitGen = tr.transform(main.literal);
+        auto mainLitGen = tr.transformLit();
         ASS(mainLitGen != main.literal);
         vvector<pair<Literal*, SLQueryResult>> sidesGeneralized;
         for (const auto& kv2 : sidesFiltered) {
           TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, kv2.first);
-          auto sideLitGen = tr.transform(kv2.first);
+          auto sideLitGen = tr.transformLit();
           if (sideLitGen != kv2.first) {
             sidesGeneralized.push_back(make_pair(sideLitGen, SLQueryResult(kv2.first, kv2.second)));
           }
@@ -302,35 +302,30 @@ void GeneralInduction::generateClauses(
   env.statistics->induction++;
 }
 
-TermList mapVarsToSkolems(vmap<TermList, TermList>& varToSkolemMap, TermList t, TermList sort) {
+TermList mapVarsToSkolems(Substitution& subst, TermList t, TermList sort) {
   DHMap<unsigned,TermList> varSorts;
-  SortHelper::collectVariableSorts(t,sort,varSorts);
+  SortHelper::collectVariableSorts(t, sort, varSorts);
 
   auto it = varSorts.items();
   while (it.hasNext()) {
     auto v = it.next();
-    TermList var(v.first, false);
-    if (!varToSkolemMap.count(var)) {
-      auto skFun = Skolem::addSkolemFunction(0,0,nullptr,v.second);
-      varToSkolemMap.insert(make_pair(var, Term::create(skFun, 0, nullptr)));
+    TermList temp;
+    if (!subst.findBinding(v.first, temp)) {
+      subst.bind(v.first, Term::create(
+        Skolem::addSkolemFunction(0, 0, nullptr, v.second), 0, nullptr));
     }
   }
-  TermReplacement tr(varToSkolemMap);
-  if (t.isTerm()) {
-    return TermList(tr.transform(t.term()));
-  }
-  return tr.transformSubterm(t);
+  return SubstHelper::apply<Substitution>(t, subst);
 }
 
-InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Case& c, const vmap<TermList, unsigned>& inductionTerms)
+InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Case& c, const vmap<Term*, unsigned>& inductionTerms)
 {
-  vmap<TermList, TermList> varToSkolemMap;
-  Substitution step;
+  Substitution subst, step;
   TermList t;
   for (const auto& kv : inductionTerms) {
     if (c._step.findBinding(kv.second, t)) {
-      auto sort = SortHelper::getResultSort(kv.first.term());
-      step.bind(kv.second, mapVarsToSkolems(varToSkolemMap, t, sort));
+      auto sort = SortHelper::getResultSort(kv.first);
+      step.bind(kv.second, mapVarsToSkolems(subst, t, sort));
     }
   }
   vvector<Substitution> recursiveCalls;
@@ -338,8 +333,8 @@ InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Cas
     recursiveCalls.emplace_back();
     for (const auto& kv : inductionTerms) {
       if (recCall.findBinding(kv.second, t)) {
-        auto sort = SortHelper::getResultSort(kv.first.term());
-        recursiveCalls.back().bind(kv.second, mapVarsToSkolems(varToSkolemMap, t, sort));
+        auto sort = SortHelper::getResultSort(kv.first);
+        recursiveCalls.back().bind(kv.second, mapVarsToSkolems(subst, t, sort));
       }
     }
   }
@@ -351,7 +346,7 @@ vmap<TermList, TermList> createBlanksForScheme(const InductionScheme& sch, DHMap
   vmap<TermList, unsigned> srts;
   vmap<TermList, TermList> replacements;
   for (const auto& kv : sch.inductionTerms()) {
-    TermList srt = env.signature->getFunction(kv.first.term()->functor())->fnType()->result();
+    TermList srt = env.signature->getFunction(kv.first->functor())->fnType()->result();
     auto it = srts.find(srt);
     if (it == srts.end()) {
       it = srts.insert(make_pair(srt,0)).first;
@@ -437,7 +432,7 @@ vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> GeneralInduction::sel
   SubtermIterator stit(literal);
   while (stit.hasNext()) {
     auto st = stit.next();
-    if (skolem(st)) {
+    if (st.isTerm() && skolem(st.term())) {
       it = pvi(getConcatenatedIterator(it, _index->getGeneralizations(st)));
     }
   }

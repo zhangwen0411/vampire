@@ -49,7 +49,7 @@ bool beforeMergeCheck(const InductionScheme& sch1, const InductionScheme& sch2) 
     auto t1 = kv1.first;
     for (const auto& kv2 : sch2.inductionTerms()) {
       auto t2 = kv2.first;
-      if (t1 != t2 && (t2.containsSubterm(t1) || t1.containsSubterm(t2))) {
+      if (t1 != t2 && (t2->containsSubterm(TermList(t1)) || t1->containsSubterm(TermList(t2)))) {
         return false;
       }
     }
@@ -199,7 +199,7 @@ void InductionSchemeFilter::filterComplex(vvector<InductionScheme>& schemes, con
   for (unsigned i = 0; i < schemes.size();) {
     bool filter = false;
     for (const auto& kv : schemes[i].inductionTerms()) {
-      if (env.signature->getFunction(kv.first.term()->functor())->skolem()) {
+      if (env.signature->getFunction(kv.first->functor())->skolem()) {
         continue;
       }
       unsigned occ = 0;

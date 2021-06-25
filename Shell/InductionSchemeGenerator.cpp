@@ -111,9 +111,12 @@ TermList TermReplacement::transformSubterm(TermList trm)
 
 TermList TermOccurrenceReplacement::transformSubterm(TermList trm)
 {
-  auto rIt = _r.find(trm);
+  if (trm.isVar()) {
+    return trm;
+  }
+  auto rIt = _r.find(trm.term());
   if (rIt != _r.end()) {
-    auto oIt = _o.find(make_pair(_lit,trm));
+    auto oIt = _o.find(make_pair(_lit,trm.term()));
     ASS(oIt != _o.end());
     if (oIt->second.pop_last()) {
       return TermList(rIt->second, false);
@@ -123,7 +126,7 @@ TermList TermOccurrenceReplacement::transformSubterm(TermList trm)
 }
 
 bool InductionScheme::Case::contains(const InductionScheme::Case& other,
-  const vmap<TermList, unsigned>& indTerms1, const vmap<TermList, unsigned>& indTerms2) const
+  const vmap<Term*, unsigned>& indTerms1, const vmap<Term*, unsigned>& indTerms2) const
 {
   RobSubstitution subst;
   auto repr1 = createRepresentingTerm(indTerms1, _step);
@@ -198,13 +201,13 @@ bool InductionScheme::addBaseCases() {
   return res;
 }
 
-TermList InductionScheme::createRepresentingTerm(const vmap<TermList, unsigned>& inductionTerms, const Substitution& s)
+TermList InductionScheme::createRepresentingTerm(const vmap<Term*, unsigned>& inductionTerms, const Substitution& s)
 {
   Stack<TermList> argSorts;
   Stack<TermList> args;
   TermList arg;
   for (const auto& kv : inductionTerms) {
-    auto fn = env.signature->getFunction(kv.first.term()->functor())->fnType();
+    auto fn = env.signature->getFunction(kv.first->functor())->fnType();
     argSorts.push(fn->result());
     if (s.findBinding(kv.second, arg)) {
       args.push(arg);
@@ -347,16 +350,16 @@ void RecursionInductionSchemeGenerator::addScheme(Literal* lit, Term* t, const I
   const auto& indPos = templ.inductionPositions();
   TermStack args;
   unsigned var = 0;
-  vmap<TermList, unsigned> inductionTerms;
+  vmap<Term*, unsigned> inductionTerms;
   for (unsigned i = 0; i < t->arity(); i++) {
     auto arg = *t->nthArgument(i);
     if (indPos[i]) {
       if (!containsSkolem(arg)) {
         return;
       }
-      auto it = inductionTerms.find(arg);
+      auto it = inductionTerms.find(arg.term());
       if (it == inductionTerms.end()) {
-        it = inductionTerms.insert(make_pair(arg, var++)).first;
+        it = inductionTerms.insert(make_pair(arg.term(), var++)).first;
       }
       args.push(TermList(it->second, false));
     } else {
@@ -434,7 +437,7 @@ void RecursionInductionSchemeGenerator::process(TermList curr, bool active,
 
   // If induction term, store the occurrence
   if (canInductOn(curr)) {
-    auto p = make_pair(lit,curr);
+    auto p = make_pair(lit,t);
     auto aIt = _actOccMaps.find(p);
     if (aIt == _actOccMaps.end()) {
       _actOccMaps.insert(make_pair(p, Occurrences(active)));
@@ -550,7 +553,7 @@ void StructuralInductionSchemeGenerator::generate(
       //   int_terms.insert(ts.term());
       // }
     }
-    auto p = make_pair(main.literal, ts);
+    auto p = make_pair(main.literal, ts.term());
     auto oIt = occMap.find(p);
     if (oIt == occMap.end()) {
       occMap.insert(make_pair(p, Occurrences(false)));
@@ -566,9 +569,9 @@ void StructuralInductionSchemeGenerator::generate(
 
   for (const auto& qr : side) {
     SubtermIterator it(qr.first);
-    while(it.hasNext()){
+    while (it.hasNext()) {
       TermList ts = it.next();
-      auto p = make_pair(qr.first, ts);
+      auto p = make_pair(qr.first, ts.term());
       auto oIt = occMap.find(p);
       if (oIt == occMap.end()) {
         occMap.insert(make_pair(p, Occurrences(false)));
@@ -600,8 +603,8 @@ InductionScheme StructuralInductionSchemeGenerator::generateStructural(Term* ter
   TermAlgebra* ta = env.signature->getTermAlgebraOfSort(env.signature->getFunction(term->functor())->fnType()->result());
   TermList ta_sort = ta->sort();
   unsigned var = 1;
-  vmap<TermList, unsigned> inductionTerms;
-  inductionTerms.insert(make_pair(TermList(term), 0));
+  vmap<Term*, unsigned> inductionTerms;
+  inductionTerms.insert(make_pair(term, 0));
   InductionScheme scheme(inductionTerms);
 
   for (unsigned i = 0; i < ta->nConstructors(); i++) {

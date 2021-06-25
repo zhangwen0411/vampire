@@ -111,7 +111,7 @@ private:
   bool _finished;
 };
 
-using OccurrenceMap = vmap<pair<Literal*, TermList>, Occurrences>;
+using OccurrenceMap = vmap<pair<Literal*, Term*>, Occurrences>;
 
 /**
  * Replaces a subset of occurrences for given TermLists
@@ -130,13 +130,14 @@ private:
  */
 class TermOccurrenceReplacement : public TermTransformer {
 public:
-  TermOccurrenceReplacement(const vmap<TermList, unsigned>& r,
+  TermOccurrenceReplacement(const vmap<Term*, unsigned>& r,
                              const OccurrenceMap& occ, Literal* lit)
                             : _r(r), _o(occ), _lit(lit) {}
+  Literal* transformLit() { return transform(_lit); }
   TermList transformSubterm(TermList trm) override;
 
 private:
-  const vmap<TermList, unsigned>& _r;
+  const vmap<Term*, unsigned>& _r;
   OccurrenceMap _o;
   Literal* _lit;
 };
@@ -147,14 +148,14 @@ private:
 class InductionScheme
 {
 public:
-  InductionScheme(const vmap<TermList, unsigned>& indTerms)
+  InductionScheme(const vmap<Term*, unsigned>& indTerms)
     : _cases(), _inductionTerms(indTerms), _finalized(false) {}
 
   struct Case {
     Case() = default;
     Case(vvector<Substitution>&& recursiveCalls, Substitution&& step)
       : _recursiveCalls(recursiveCalls), _step(step) {}
-    bool contains(const Case& other, const vmap<TermList, unsigned>& indTerms1, const vmap<TermList, unsigned>& indTerms2) const;
+    bool contains(const Case& other, const vmap<Term*, unsigned>& indTerms1, const vmap<Term*, unsigned>& indTerms2) const;
 
     vvector<Substitution> _recursiveCalls;
     Substitution _step;
@@ -167,15 +168,15 @@ public:
     _cases.push_back(std::move(c));
   }
   bool finalize();
-  static TermList createRepresentingTerm(const vmap<TermList, unsigned>& inductionTerms, const Substitution& s);
+  static TermList createRepresentingTerm(const vmap<Term*, unsigned>& inductionTerms, const Substitution& s);
   const vvector<Case>& cases() const { ASS(_finalized); return _cases; }
-  const vmap<TermList, unsigned>& inductionTerms() const { ASS(_finalized); return _inductionTerms; }
+  const vmap<Term*, unsigned>& inductionTerms() const { ASS(_finalized); return _inductionTerms; }
 
 private:
   bool addBaseCases();
 
   vvector<Case> _cases;
-  vmap<TermList, unsigned> _inductionTerms;
+  vmap<Term*, unsigned> _inductionTerms;
   bool _finalized;
 };
 

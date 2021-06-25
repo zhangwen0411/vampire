@@ -131,7 +131,7 @@ private:
     Literal* mainLit, const SLQueryResult& mainQuery,
     const vvector<pair<Literal*,SLQueryResult>>& sideLitQrPairs,
     ClauseStack& clauses);
-  InductionScheme::Case skolemizeCase(const InductionScheme::Case& c, const vmap<TermList, unsigned>& inductionTerms);
+  InductionScheme::Case skolemizeCase(const InductionScheme::Case& c, const vmap<Term*, unsigned>& inductionTerms);
   bool alreadyDone(Literal* mainLit, const vset<pair<Literal*,Clause*>>& sides,
     const InductionScheme& sch, pair<Literal*,vset<Literal*>>& res);
   vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> selectMainSidePairs(Literal* literal, Clause* premise);
