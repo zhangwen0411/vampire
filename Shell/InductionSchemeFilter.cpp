@@ -40,20 +40,22 @@ namespace Shell {
 //   return true;
 // }
 
-// bool beforeMergeCheck(const InductionScheme& sch1, const InductionScheme& sch2) {
-//   // If one of the induction terms from sch2 contains
-//   // one from sch1, it means that those subterms are also
-//   // in active positions and we lose some structure
-//   // of sch1 if we discard it because of subsumption
-//   for (auto t1 : sch1.inductionTerms()) { // copy here because of const
-//     for (auto t2 : sch2.inductionTerms()) {
-//       if (t1 != t2 && (t2.containsSubterm(t1) || t1.containsSubterm(t2))) {
-//         return false;
-//       }
-//     }
-//   }
-//   return true;
-// }
+bool beforeMergeCheck(const InductionScheme& sch1, const InductionScheme& sch2) {
+  // If one of the induction terms from sch2 contains
+  // one from sch1, it means that those subterms are also
+  // in active positions and we lose some structure
+  // of sch1 if we discard it because of subsumption
+  for (const auto& kv1 : sch1.inductionTerms()) {
+    auto t1 = kv1.first;
+    for (const auto& kv2 : sch2.inductionTerms()) {
+      auto t2 = kv2.first;
+      if (t1 != t2 && (t2.containsSubterm(t1) || t1.containsSubterm(t2))) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
 
 // bool createMergedCase(const InductionScheme::Case& case1, const InductionScheme::Case& case2,
 //   const vset<TermList>& combinedInductionTerms, InductionScheme::Case& res)
@@ -151,118 +153,117 @@ void InductionSchemeFilter::filter(vvector<InductionScheme>& schemes, const Occu
 {
   CALL("InductionSchemeFilter::filter");
 
-  // static const bool filterC = env.options->inductionOnComplexTermsHeuristic();
-  // if (filterC) {
-  //   filterComplex(schemes, actOccMaps);
-  // }
+  static const bool filterC = env.options->inductionOnComplexTermsHeuristic();
+  if (filterC) {
+    filterComplex(schemes, actOccMaps);
+  }
 
-  // for (unsigned i = 0; i < schemes.size();) {
-  //   bool subsumed = false;
-  //   for (unsigned j = i+1; j < schemes.size();) {
+  for (unsigned i = 0; i < schemes.size();) {
+    bool subsumed = false;
+    for (unsigned j = i+1; j < schemes.size();) {
 
-  //     if (!beforeMergeCheck(schemes[i], schemes[j])) {
-  //       j++;
-  //       continue;
-  //     }
+      if (!beforeMergeCheck(schemes[i], schemes[j])) {
+        j++;
+        continue;
+      }
 
-  //     InductionScheme merged;
-  //     if (checkContainment(schemes[j], schemes[i])) {
-  //       schemes[j] = std::move(schemes.back());
-  //       schemes.pop_back();
-  //     }
-  //     else if (checkContainment(schemes[i], schemes[j])) {
-  //       subsumed = true;
-  //       break;
-  //     }
-  //     else if (mergeSchemes(schemes[j], schemes[i], merged)) {
-  //       schemes[j] = std::move(schemes.back());
-  //       schemes.pop_back();
-  //       schemes[i] = merged;
-  //       break;
-  //     } else {
-  //       j++;
-  //     }
-  //   }
-  //   if (subsumed) {
-  //     schemes[i] = std::move(schemes.back());
-  //     schemes.pop_back();
-  //   } else {
-  //     i++;
-  //   }
-  // }
+      // InductionScheme merged;
+      if (checkContainment(schemes[j], schemes[i])) {
+        schemes[j] = std::move(schemes.back());
+        schemes.pop_back();
+      }
+      else if (checkContainment(schemes[i], schemes[j])) {
+        subsumed = true;
+        break;
+      // }
+      // else if (mergeSchemes(schemes[j], schemes[i], merged)) {
+      //   schemes[j] = std::move(schemes.back());
+      //   schemes.pop_back();
+      //   schemes[i] = merged;
+      //   break;
+      } else {
+        j++;
+      }
+    }
+    if (subsumed) {
+      schemes[i] = std::move(schemes.back());
+      schemes.pop_back();
+    } else {
+      i++;
+    }
+  }
 }
 
-// void InductionSchemeFilter::filterComplex(vvector<InductionScheme>& schemes, const OccurrenceMap& occMap)
-// {
-//   for (unsigned i = 0; i < schemes.size();) {
-//     bool filter = false;
-//     for (const auto& indTerm : schemes[i].inductionTerms()) {
-//       if (env.signature->getFunction(indTerm.term()->functor())->skolem()) {
-//         continue;
-//       }
-//       unsigned occ = 0;
-//       for (const auto& kv : occMap) {
-//         if (kv.first.second == indTerm) {
-//           occ += kv.second.num_bits();
-//         }
-//       }
-//       if (occ == 1) {
-//         filter = true;
-//         break;
-//       }
-//     }
-//     if (filter) {
-//       if(env.options->showInduction()){
-//         env.beginOutput();
-//         env.out() << "scheme inducting on complex terms filtered out " << schemes[i] << endl;
-//         env.endOutput();
-//       }
-//       schemes[i] = std::move(schemes.back());
-//       schemes.pop_back();
-//     } else {
-//       i++;
-//     }
-//   }
-// }
+void InductionSchemeFilter::filterComplex(vvector<InductionScheme>& schemes, const OccurrenceMap& occMap)
+{
+  for (unsigned i = 0; i < schemes.size();) {
+    bool filter = false;
+    for (const auto& kv : schemes[i].inductionTerms()) {
+      if (env.signature->getFunction(kv.first.term()->functor())->skolem()) {
+        continue;
+      }
+      unsigned occ = 0;
+      for (const auto& kv2 : occMap) {
+        if (kv2.first.second == kv.first) {
+          occ += kv2.second.num_bits();
+        }
+      }
+      if (occ == 1) {
+        filter = true;
+        break;
+      }
+    }
+    if (filter) {
+      if(env.options->showInduction()){
+        env.beginOutput();
+        env.out() << "scheme inducting on complex terms filtered out " << schemes[i] << endl;
+        env.endOutput();
+      }
+      schemes[i] = std::move(schemes.back());
+      schemes.pop_back();
+    } else {
+      i++;
+    }
+  }
+}
 
-// /**
-//  * Checks whether all cases of sch1 are contained by some case of sch2
-//  */
-// bool InductionSchemeFilter::checkContainment(const InductionScheme& sch1, const InductionScheme& sch2)
-// {
-//   CALL("InductionSchemeFilter::checkContainment");
+/**
+ * Checks whether all cases of sch1 are contained by some case of sch2
+ */
+bool InductionSchemeFilter::checkContainment(const InductionScheme& sch1, const InductionScheme& sch2)
+{
+  CALL("InductionSchemeFilter::checkContainment");
 
-//   if (sch1.inductionTerms() != sch2.inductionTerms()) {
-//     return false;
-//   }
+  if (sch1.inductionTerms() != sch2.inductionTerms()) {
+    return false;
+  }
 
-//   auto var = max(sch1.maxVar(),sch2.maxVar()) + 1;
-//   for (const auto& case1 : sch1.cases()) {
-//     if (case1._recursiveCalls.empty()) {
-//       continue;
-//     }
-//     bool foundStep = false;
-//     for (const auto& case2 : sch2.cases()) {
-//       if (case2._recursiveCalls.empty()) {
-//         continue;
-//       }
+  for (const auto& case1 : sch1.cases()) {
+    if (case1._recursiveCalls.empty()) {
+      continue;
+    }
+    bool foundStep = false;
+    for (const auto& case2 : sch2.cases()) {
+      if (case2._recursiveCalls.empty()) {
+        continue;
+      }
 
-//       if (case2.contains(case1, var)) {
-//         foundStep = true;
-//         break;
-//       }
-//     }
-//     if (!foundStep) {
-//       return false;
-//     }
-//   }
-//   if (env.options->showInduction()) {
-//     env.beginOutput();
-//     env.out() << "[Induction] induction scheme " << sch1
-//               << " is subsumed by " << sch2 << endl;
-//     env.endOutput();
-//   }
-//   return true;
-// }
+      if (case2.contains(case1, sch1.inductionTerms(), sch2.inductionTerms())) {
+        foundStep = true;
+        break;
+      }
+    }
+    if (!foundStep) {
+      return false;
+    }
+  }
+  if (env.options->showInduction()) {
+    env.beginOutput();
+    env.out() << "[Induction] induction scheme " << sch1
+              << " is subsumed by " << sch2 << endl;
+    env.endOutput();
+  }
+  return true;
+}
 
 } // Shell

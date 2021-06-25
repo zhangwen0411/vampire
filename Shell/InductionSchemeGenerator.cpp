@@ -153,16 +153,16 @@ bool InductionScheme::Case::contains(const InductionScheme::Case& other,
 
 bool InductionScheme::finalize()
 {
-  // for (unsigned i = 0; i < _cases.size(); i++) {
-  //   for (unsigned j = i+1; j < _cases.size();) {
-  //     if (_cases[i].contains(_cases[j], _inductionTerms, _inductionTerms)) {
-  //       _cases[j] = _cases.back();
-  //       _cases.pop_back();
-  //     } else {
-  //       j++;
-  //     }
-  //   }
-  // }
+  for (unsigned i = 0; i < _cases.size(); i++) {
+    for (unsigned j = i+1; j < _cases.size();) {
+      if (_cases[i].contains(_cases[j], _inductionTerms, _inductionTerms)) {
+        _cases[j] = std::move(_cases[_cases.size()-1]);
+        _cases.pop_back();
+      } else {
+        j++;
+      }
+    }
+  }
   ALWAYS(addBaseCases());
   _cases.shrink_to_fit();
   vvector<pair<TermList,TermList>> relatedTerms;
@@ -283,19 +283,20 @@ void RecursionInductionSchemeGenerator::generate(
   }
   // filter out schemes that only contain induction
   // terms not present in the main literal
-  for (auto it = schemes.begin(); it != schemes.end();) {
+  for (unsigned i = 0; i < schemes.size();) {
     auto found = false;
-    for (const auto& kv : it->inductionTerms()) {
-      auto it2 = _actOccMaps.find(make_pair(main.literal, kv.first));
-      if (it2 != _actOccMaps.end() && it2->second.num_set_bits()) {
+    for (const auto& kv : schemes[i].inductionTerms()) {
+      auto it = _actOccMaps.find(make_pair(main.literal, kv.first));
+      if (it != _actOccMaps.end() && it->second.num_set_bits()) {
         found = true;
         break;
       }
     }
     if (!found) {
-      it = schemes.erase(it);
+      schemes[i] = std::move(schemes[schemes.size()-1]);
+      schemes.pop_back();
     } else {
-      it++;
+      i++;
     }
   }
   static InductionSchemeFilter f;
