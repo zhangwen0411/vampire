@@ -616,4 +616,99 @@ InductionScheme StructuralInductionSchemeGenerator::generateStructural(Term* ter
   return scheme;
 }
 
+void IntegerInductionSchemeGenerator::generate(
+  const SLQueryResult& main,
+  const vset<pair<Literal*,Clause*>>& side,
+  vvector<pair<InductionScheme, OccurrenceMap>>& res)
+{
+  CALL("IntegerInductionSchemeGenerator()");
+
+  vvector<InductionScheme> schemes;
+  OccurrenceMap occMap;
+
+  Set<Term*> int_terms;
+  SubtermIterator it(main.literal);
+  while (it.hasNext()) {
+    TermList ts = it.next();
+    ASS(ts.isTerm());
+    unsigned f = ts.term()->functor();
+    if (Inferences::InductionHelper::isInductionTermFunctor(f) &&
+        Inferences::InductionHelper::isIntInductionOneOn() &&
+        env.signature->getFunction(f)->fnType()->result() == Term::intSort() &&
+        !theory->isInterpretedConstant(f)) {
+      int_terms.insert(ts.term());
+    }
+
+    auto p = make_pair(main.literal, ts.term());
+    auto oIt = occMap.find(p);
+    if (oIt == occMap.end()) {
+      occMap.insert(make_pair(p, Occurrences(false)));
+    } else {
+      oIt->second.add(false);
+    }
+  }
+
+  Set<Term*>::Iterator intIt(int_terms);
+  while (intIt.hasNext()) {
+    schemes.push_back(generateInteger(intIt.next()));
+  }
+
+  for (const auto& qr : side) {
+    SubtermIterator it(qr.first);
+    while (it.hasNext()) {
+      TermList ts = it.next();
+      auto p = make_pair(qr.first, ts.term());
+      auto oIt = occMap.find(p);
+      if (oIt == occMap.end()) {
+        occMap.insert(make_pair(p, Occurrences(false)));
+      } else {
+        oIt->second.add(false);
+      }
+    }
+  }
+
+  for (auto& o : occMap) {
+    o.second.finalize();
+  }
+
+  for (const auto& sch : schemes) {
+    OccurrenceMap necessary;
+    for (const auto& kv : occMap) {
+      if (sch.inductionTerms().count(kv.first.second)) {
+        necessary.insert(kv);
+      }
+    }
+    res.push_back(make_pair(sch, necessary));
+  }
+}
+
+InductionScheme IntegerInductionSchemeGenerator::generateInteger(Term* term)
+{
+  CALL("IntegerInductionSchemeGenerator::generateInteger");
+
+  unsigned var = 1;
+  vmap<Term*, unsigned> inductionTerms;
+  inductionTerms.insert(make_pair(term, 0));
+  InductionScheme scheme(inductionTerms, true);
+
+  // base case
+  TermList zero(theory->representConstant(IntegerConstantType(0)));
+  Substitution base;
+  base.bind(0, zero);
+  vvector<Substitution> empty;
+  scheme.addCase(std::move(empty), std::move(base));
+
+  // step case
+  TermList x(var++, false);
+  vvector<Substitution> recursiveCalls(1);
+  recursiveCalls.back().bind(0, x);
+  Substitution step;
+  TermList one(theory->representConstant(IntegerConstantType(1)));
+  step.bind(0, Term::create2(env.signature->getInterpretingSymbol(Theory::INT_PLUS), x, one));
+  scheme.addCase(std::move(recursiveCalls), std::move(step));
+
+  scheme.finalize();
+  return scheme;
+}
+
 } // Shell

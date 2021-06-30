@@ -225,6 +225,17 @@ private:
   InductionScheme generateStructural(Term* term);
 };
 
+struct IntegerInductionSchemeGenerator
+  : public InductionSchemeGenerator
+{
+  void generate(const SLQueryResult& main,
+    const vset<pair<Literal*,Clause*>>& side,
+    vvector<pair<InductionScheme, OccurrenceMap>>& res) override;
+
+private:
+  InductionScheme generateInteger(Term* term);
+};
+
 } // Shell
 
 #endif
