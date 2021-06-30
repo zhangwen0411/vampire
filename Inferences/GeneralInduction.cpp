@@ -45,6 +45,7 @@
 #include "Indexing/Index.hpp"
 #include "Indexing/ResultSubstitution.hpp"
 #include "Inferences/BinaryResolution.hpp"
+#include "Inferences/InductionHelper.hpp"
 
 #include "GeneralInduction.hpp"
 
@@ -59,21 +60,9 @@ ClauseIterator GeneralInduction::generateClauses(Clause* premise)
 {
   CALL("GeneralInduction::generateClauses");
 
-  static Options::InductionChoice kind = env.options->inductionChoice();
-  static bool all = (kind == Options::InductionChoice::ALL);
-  static bool goal = (kind == Options::InductionChoice::GOAL);
-  static bool goal_plus = (kind == Options::InductionChoice::GOAL_PLUS);
-  static unsigned maxD = env.options->maxInductionDepth();
-  static bool unitOnly = env.options->inductionUnitOnly();
-
-  // auto res = ClauseIterator::getEmpty();
   InductionClauseIterator res;
-  if((!unitOnly || premise->length()==1) && 
-     (all || ( (goal || goal_plus) && premise->derivedFromGoal())) &&
-     (maxD == 0 || premise->inference().inductionDepth() < maxD)
-    )
-  {
-    for(unsigned i=0;i<premise->length();i++){
+  if (InductionHelper::isInductionClause(premise)) {
+    for (unsigned i = 0; i < premise->length(); i++) {
       process(res, premise, (*premise)[i]);
     }
   }
@@ -104,8 +93,12 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
     schOccMap.clear();
     RecursionInductionSchemeGenerator gen;
     gen.generate(main, sides, schOccMap);
+
     vvector<pair<Literal*, vset<Literal*>>> schLits;
     for (const auto& kv : schOccMap) {
+      // Retain side literals for further processing if:
+      // (1) they contain some induction term
+      // (2) they have either induction depth 0 or they contain some complex induction term
       vset<pair<Literal*, Clause*>> sidesFiltered;
       for (const auto& s : sides) {
         for (const auto& kv2 : kv.first.inductionTerms()) {
@@ -125,14 +118,13 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
         auto eg = g.next();
         TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, main.literal);
         auto mainLitGen = tr.transformLit();
-        ASS(mainLitGen != main.literal);
+        ASS_NEQ(mainLitGen, main.literal);
         vvector<pair<Literal*, SLQueryResult>> sidesGeneralized;
         for (const auto& kv2 : sidesFiltered) {
           TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, kv2.first);
           auto sideLitGen = tr.transformLit();
-          if (sideLitGen != kv2.first) {
-            sidesGeneralized.push_back(make_pair(sideLitGen, SLQueryResult(kv2.first, kv2.second)));
-          }
+          ASS_NEQ(sideLitGen, kv2.first);
+          sidesGeneralized.push_back(make_pair(sideLitGen, SLQueryResult(kv2.first, kv2.second)));
         }
         generateClauses(kv.first, mainLitGen, main, sidesGeneralized, res._clauses);
       }
@@ -171,7 +163,7 @@ void GeneralInduction::generateClauses(
 {
   CALL("GeneralInduction::generateClauses");
 
-  if(env.options->showInduction()){
+  if (env.options->showInduction()){
     env.beginOutput();
     env.out() << "[Induction] generating from scheme " << scheme
               << " with generalized literals " << *mainLit << ", ";
@@ -379,19 +371,17 @@ bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Cl
   // "induction loops" when we induct on the step immediately
   // after creating it. This means we usually want to exclude
   // schemes with complex terms, but this is an ugly workaround
-  bool containsComplex = true;
   for (const auto& kv : sch.inductionTerms()) {
     if (skolem(kv.first)) {
-      containsComplex = false;
-      break;
+      return false;
     }
   }
-  if (!_done.find(res.first) || !containsComplex) {
+  if (!_done.find(res.first)) {
     return false;
   }
   auto s = _done.get(res.first);
   if (includes(s.begin(), s.end(), res.second.begin(), res.second.end())) {
-    if(env.options->showInduction()){
+    if (env.options->showInduction()) {
       env.beginOutput();
       env.out() << "[Induction] already inducted on " << *mainLit << " in " << *res.first << " form" << endl;
       env.endOutput();
@@ -399,13 +389,6 @@ bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Cl
     return true;
   }
   return false;
-}
-
-inline bool mainLitCondition(Literal* literal) {
-  static bool negOnly = env.options->inductionNegOnly();
-  return (!negOnly || literal->isNegative() || 
-      (theory->isInterpretedPredicate(literal) && theory->isInequality(theory->interpretPredicate(literal)))
-    ) && literal->ground();
 }
 
 inline bool sideLitCondition(Literal* main, Clause* mainCl, Literal* side, Clause* sideCl) {
@@ -433,7 +416,7 @@ vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> GeneralInduction::sel
     }
   }
 
-  if (mainLitCondition(literal))
+  if (InductionHelper::isInductionLiteral(literal))
   {
     res.emplace_back(SLQueryResult(literal, premise), vset<pair<Literal*,Clause*>>());
     while (it.hasNext()) {
@@ -445,7 +428,9 @@ vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> GeneralInduction::sel
   } else {
     while (it.hasNext()) {
       auto qr = it.next();
-      if (qr.clause->store() == Clause::ACTIVE && mainLitCondition(qr.literal) && sideLitCondition(qr.literal, qr.clause, literal, premise)) {
+      if (qr.clause->store() == Clause::ACTIVE &&
+          InductionHelper::isInductionLiteral(qr.literal) &&
+          sideLitCondition(qr.literal, qr.clause, literal, premise)) {
         res.emplace_back(SLQueryResult(qr.literal, qr.clause), vset<pair<Literal*,Clause*>>());
         res.back().second.emplace(literal, premise);
       }

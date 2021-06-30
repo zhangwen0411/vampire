@@ -71,7 +71,6 @@ ostream& operator<<(ostream& out, const InductionTemplate::Branch& branch)
 bool InductionTemplate::checkWellDefinedness(vvector<vvector<TermList>>& missingCases)
 {
   vvector<Term*> cases;
-  unsigned var = 0;
   for (auto& b : _branches) {
     cases.push_back(b._header.term());
   }

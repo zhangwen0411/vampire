@@ -148,8 +148,8 @@ private:
 class InductionScheme
 {
 public:
-  InductionScheme(const vmap<Term*, unsigned>& indTerms)
-    : _cases(), _inductionTerms(indTerms), _finalized(false) {}
+  InductionScheme(const vmap<Term*, unsigned>& indTerms, bool noChecks = false)
+    : _cases(), _inductionTerms(indTerms), _finalized(false), _noChecks(noChecks) {}
 
   struct Case {
     Case() = default;
@@ -178,6 +178,7 @@ private:
   vvector<Case> _cases;
   vmap<Term*, unsigned> _inductionTerms;
   bool _finalized;
+  bool _noChecks;
 };
 
 ostream& operator<<(ostream& out, const InductionScheme& scheme);

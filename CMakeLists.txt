@@ -425,13 +425,16 @@ set(VAMPIRE_INFERENCE_SOURCES
     Inferences/ExtensionalityResolution.cpp
     Inferences/Factoring.cpp
     Inferences/FastCondensation.cpp
+    Inferences/FnDefRewriting.cpp
     Inferences/FOOLParamodulation.cpp
     Inferences/ForwardDemodulation.cpp
     Inferences/ForwardLiteralRewriting.cpp
     Inferences/ForwardSubsumptionAndResolution.cpp
     Inferences/ForwardSubsumptionDemodulation.cpp
+    Inferences/GeneralInduction.cpp
     Inferences/GlobalSubsumption.cpp
     Inferences/HyperSuperposition.cpp
+    Inferences/InductionHypothesisRewriting.cpp
     Inferences/InnerRewriting.cpp
     Inferences/EquationalTautologyRemoval.cpp
     Inferences/Induction.cpp
@@ -589,10 +592,14 @@ set(VAMPIRE_SHELL_SOURCES
     Shell/EqualityProxyMono.cpp    
     Shell/Flattening.cpp
     Shell/FunctionDefinition.cpp
+    Shell/FunctionDefinitionDiscovery.cpp
     Shell/GeneralSplitting.cpp
     Shell/GoalGuessing.cpp
     #Shell/GlobalOptions.cpp
     Shell/Grounding.cpp
+    Shell/InductionPreprocessor.cpp
+    Shell/InductionSchemeFilter.cpp
+    Shell/InductionSchemeGenerator.cpp
     Shell/InequalitySplitting.cpp
     Shell/InterpolantMinimizer.cpp
     Shell/InterpolantMinimizerNew.cpp

@@ -25,6 +25,8 @@
 
 #include "InductionSchemeFilter.hpp"
 
+#include "Inferences/InductionHelper.hpp"
+
 using namespace Kernel;
 
 namespace Shell {
@@ -156,6 +158,10 @@ bool InductionScheme::Case::contains(const InductionScheme::Case& other,
 
 bool InductionScheme::finalize()
 {
+  if (_noChecks) {
+    _finalized = true;
+    return true;
+  }
   for (unsigned i = 0; i < _cases.size(); i++) {
     for (unsigned j = i+1; j < _cases.size();) {
       if (_cases[i].contains(_cases[j], _inductionTerms, _inductionTerms)) {
@@ -234,7 +240,7 @@ ostream& operator<<(ostream& out, const InductionScheme& scheme)
   unsigned l = indTerms.size();
   out << '[';
   for (const auto& kv : indTerms) {
-    out << kv.first << " -> " << kv.second;
+    out << *kv.first << " -> " << kv.second;
     if (++k < l) {
       out << ',';
     }
@@ -517,42 +523,18 @@ void StructuralInductionSchemeGenerator::generate(
   vvector<InductionScheme> schemes;
   OccurrenceMap occMap;
 
-  static Options::InductionChoice kind = env.options->inductionChoice();
-  static bool all = (kind == Options::InductionChoice::ALL);
-  static bool goal_plus = (kind == Options::InductionChoice::GOAL_PLUS);
-  static bool structInd = env.options->induction() == Options::Induction::BOTH ||
-                         env.options->induction() == Options::Induction::STRUCTURAL;
-  static bool mathInd = env.options->induction() == Options::Induction::BOTH ||
-                         env.options->induction() == Options::Induction::INTEGER;
-  static bool complexTermsAllowed = env.options->inductionOnComplexTerms();
-
   Set<Term*> ta_terms;
-  // Set<Term*> int_terms;
   SubtermIterator it(main.literal);
-  while(it.hasNext()){
+  while (it.hasNext()) {
     TermList ts = it.next();
     ASS(ts.isTerm());
     unsigned f = ts.term()->functor();
-    if((complexTermsAllowed || env.signature->functionArity(f)==0) &&
-        (
-            all
-        || env.signature->getFunction(f)->inGoal()
-        || (goal_plus && env.signature->getFunction(f)->inductionSkolem()) // set in NewCNF
-        )
-    ){
-      if(structInd &&
-        env.signature->isTermAlgebraSort(env.signature->getFunction(f)->fnType()->result()) &&
-        ((complexTermsAllowed && env.signature->functionArity(f) != 0) || !env.signature->getFunction(f)->termAlgebraCons()) // skip base constructors
-        ){
-        ta_terms.insert(ts.term());
-      }
-      // if(mathInd &&
-      //     env.signature->getFunction(f)->fnType()->result()==Sorts::SRT_INTEGER &&
-      //     !theory->isInterpretedConstant(f)
-      //   ){
-      //   int_terms.insert(ts.term());
-      // }
+    if (Inferences::InductionHelper::isInductionTermFunctor(f) &&
+        Inferences::InductionHelper::isStructInductionOn() &&
+        Inferences::InductionHelper::isStructInductionFunctor(f)) {
+      ta_terms.insert(ts.term());
     }
+
     auto p = make_pair(main.literal, ts.term());
     auto oIt = occMap.find(p);
     if (oIt == occMap.end()) {
@@ -605,7 +587,7 @@ InductionScheme StructuralInductionSchemeGenerator::generateStructural(Term* ter
   unsigned var = 1;
   vmap<Term*, unsigned> inductionTerms;
   inductionTerms.insert(make_pair(term, 0));
-  InductionScheme scheme(inductionTerms);
+  InductionScheme scheme(inductionTerms, true);
 
   for (unsigned i = 0; i < ta->nConstructors(); i++) {
     TermAlgebraConstructor* con = ta->constructor(i);
@@ -616,9 +598,9 @@ InductionScheme StructuralInductionSchemeGenerator::generateStructural(Term* ter
     Stack<TermList> ta_vars;
     Stack<TermList> argTerms;
     for (unsigned i = 0; i < arity; i++) {
-      TermList x(var++,false);
+      TermList x(var++, false);
       argTerms.push(x);
-      if(con->argSort(i) == ta_sort){
+      if (con->argSort(i) == ta_sort) {
         ta_vars.push(x);
       }
     }
