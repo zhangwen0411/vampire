@@ -314,7 +314,7 @@ void RecursionInductionSchemeGenerator::generate(
   for (const auto& sch : schemes) {
     OccurrenceMap necessary;
     for (const auto& kv : _actOccMaps) {
-      if (sch.inductionTerms().count(kv.first.second)) {
+      if (sch.inductionTerms().count(kv.first.second) && kv.second.num_set_bits()) {
         necessary.insert(kv);
       }
     }

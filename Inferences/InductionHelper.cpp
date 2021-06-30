@@ -173,6 +173,20 @@ bool InductionHelper::isStructInductionOn() {
   return structInd;
 }
 
+bool InductionHelper::isStructInductionOneOn() {
+  CALL("InductionHelper::isStructInductionOneOn");
+  static bool structInd = env.options->structInduction() == Options::StructuralInductionKind::ALL ||
+                          env.options->structInduction() == Options::StructuralInductionKind::ONE;
+  return structInd;
+}
+
+bool InductionHelper::isStructInductionRecDefOn() {
+  CALL("InductionHelper::isStructInductionRecDefOn");
+  static bool structInd = env.options->structInduction() == Options::StructuralInductionKind::ALL ||
+                          env.options->structInduction() == Options::StructuralInductionKind::REC_DEF;
+  return structInd;
+}
+
 bool InductionHelper::isInductionClause(Clause* c) {
   CALL("InductionHelper::isInductionClause");
   static Options::InductionChoice kind = env.options->inductionChoice();

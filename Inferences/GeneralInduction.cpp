@@ -91,8 +91,9 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
     const auto& sides = kv.second;
     static vvector<pair<InductionScheme, OccurrenceMap>> schOccMap;
     schOccMap.clear();
-    RecursionInductionSchemeGenerator gen;
-    gen.generate(main, sides, schOccMap);
+    for (auto& gen : _gen) {
+      gen->generate(main, sides, schOccMap);
+    }
 
     vvector<pair<Literal*, vset<Literal*>>> schLits;
     for (const auto& kv : schOccMap) {

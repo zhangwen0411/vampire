@@ -53,6 +53,8 @@ public:
   static bool isInductionForFiniteIntervalsOn();
   static bool isInductionForInfiniteIntervalsOn();
   static bool isStructInductionOn();
+  static bool isStructInductionOneOn();
+  static bool isStructInductionRecDefOn();
   static bool isInductionClause(Clause* c);
   static bool isInductionLiteral(Literal* l);
   static bool isInductionTermFunctor(unsigned f);

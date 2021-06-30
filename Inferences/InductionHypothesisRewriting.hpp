@@ -39,8 +39,7 @@ public:
   void attach(SaturationAlgorithm* salg) override {
     GeneratingInferenceEngine::attach(salg);
     _splitter=_salg->getSplitter();
-    _induction = new GeneralInduction(InferenceRule::IH_REWRITING);
-    _induction->attach(_salg);
+    _induction = _salg->getInduction();
     _dupLitRemoval = new DuplicateLiteralRemovalISE();
     _dupLitRemoval->attach(_salg);
     _lhsIndex = static_cast<IHLHSIndex *>(
@@ -60,8 +59,6 @@ public:
     _dupLitRemoval->detach();
     delete _dupLitRemoval;
     _dupLitRemoval = nullptr;
-    _induction->detach();
-    delete _induction;
     _induction = nullptr;
     _splitter = nullptr;
     GeneratingInferenceEngine::detach();

@@ -87,7 +87,15 @@ public:
   DECL_ELEMENT_TYPE(OccurrenceMap);
 
   GeneralizationIterator(const OccurrenceMap& occ, bool heuristic)
-    : _occ(occ), _hasNext(true), _heuristic(heuristic) {}
+    : _occ(occ), _hasNext(true), _heuristic(heuristic)
+  {
+    // eliminate all 0s
+    for (auto& o : _occ) {
+      if (!o.second.num_set_bits()) {
+        ALWAYS(o.second.next());
+      }
+    }
+  }
 
   inline bool hasNext()
   {
@@ -112,6 +120,10 @@ public:
         break;
       }
       it->second.reset_bits();
+      // eliminate all 0s as in ctor
+      if (!it->second.num_set_bits()) {
+        ALWAYS(it->second.next());
+      }
       it++;
     }
     if (it == _occ.end()) {
@@ -143,9 +155,16 @@ public:
   CLASS_NAME(GeneralInduction);
   USE_ALLOCATOR(GeneralInduction);
 
-  GeneralInduction(InferenceRule rule)
-    : _splitter(0),
+  GeneralInduction(const vvector<InductionSchemeGenerator*> gen, InferenceRule rule)
+    : _gen(gen),
+      _splitter(0),
       _rule(rule) {}
+
+  ~GeneralInduction() {
+    for (auto& gen : _gen) {
+      delete gen;
+    }
+  }
 
   ClauseIterator generateClauses(Clause* premise) override;
   void attach(SaturationAlgorithm* salg) override;
@@ -178,6 +197,7 @@ private:
     const InductionScheme& sch, pair<Literal*,vset<Literal*>>& res);
   vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> selectMainSidePairs(Literal* literal, Clause* premise);
 
+  vvector<InductionSchemeGenerator*> _gen;
   Splitter* _splitter;
   InferenceRule _rule;
   DHMap<Literal*, vset<Literal*>> _done;

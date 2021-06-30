@@ -47,6 +47,7 @@ public:
     ASS(!_finished);
     _finished = true;
     const auto c = num_bits();
+    ASS(c); // if no bits are present, something is wrong
     auto temp = _occ;
     _occ = 0;
     for (uint64_t i = 0; i < c; i++) {
@@ -189,6 +190,7 @@ ostream& operator<<(ostream& out, const InductionScheme& scheme);
  * Also stores all active occurrences of possible induction terms.
  */
 struct InductionSchemeGenerator {
+  virtual ~InductionSchemeGenerator() = default;
   virtual void generate(
     const SLQueryResult& main,
     const vset<pair<Literal*,Clause*>>& side,
@@ -198,6 +200,9 @@ struct InductionSchemeGenerator {
 struct RecursionInductionSchemeGenerator
   : public InductionSchemeGenerator
 {
+  CLASS_NAME(RecursionInductionSchemeGenerator);
+  USE_ALLOCATOR(RecursionInductionSchemeGenerator);
+
   void generate(const SLQueryResult& main,
     const vset<pair<Literal*,Clause*>>& side,
     vvector<pair<InductionScheme, OccurrenceMap>>& res) override;
@@ -217,6 +222,9 @@ private:
 struct StructuralInductionSchemeGenerator
   : public InductionSchemeGenerator
 {
+  CLASS_NAME(StructuralInductionSchemeGenerator);
+  USE_ALLOCATOR(StructuralInductionSchemeGenerator);
+
   void generate(const SLQueryResult& main,
     const vset<pair<Literal*,Clause*>>& side,
     vvector<pair<InductionScheme, OccurrenceMap>>& res) override;
@@ -228,6 +236,9 @@ private:
 struct IntegerInductionSchemeGenerator
   : public InductionSchemeGenerator
 {
+  CLASS_NAME(IntegerInductionSchemeGenerator);
+  USE_ALLOCATOR(IntegerInductionSchemeGenerator);
+
   void generate(const SLQueryResult& main,
     const vset<pair<Literal*,Clause*>>& side,
     vvector<pair<InductionScheme, OccurrenceMap>>& res) override;

@@ -224,7 +224,7 @@ SaturationAlgorithm::SaturationAlgorithm(Problem& prb, const Options& opt)
     _clauseActivationInProgress(false),
     _fwSimplifiers(0), _simplifiers(0), _bwSimplifiers(0), _splitter(0),
     _consFinder(0), _labelFinder(0), _symEl(0), _answerLiteralManager(0),
-    _instantiation(0),
+    _instantiation(0), _induction(0),
     _generatedClauseCount(0),
     _activationLimit(0)
 {
@@ -1521,11 +1521,18 @@ SaturationAlgorithm* SaturationAlgorithm::createFromOptions(Problem& prb, const 
   //TODO here induction is last, is that right?
   if(opt.induction()!=Options::Induction::NONE){
     // gie->addFront(new Induction());
-
-    // if ((opt.induction() == Options::Induction::STRUCTURAL || opt.induction() == Options::Induction::BOTH) &&
-    //     (opt.structInduction() == Options::StructuralInductionKind::REC_DEF || opt.structInduction() == Options::StructuralInductionKind::ALL)) {
-      gie->addFront(new GeneralInduction(InferenceRule::INDUCTION_AXIOM));
-    // }
+    vvector<InductionSchemeGenerator*> generators;
+    if (InductionHelper::isIntInductionOneOn()) {
+      generators.push_back(new IntegerInductionSchemeGenerator());
+    }
+    if (InductionHelper::isStructInductionOneOn()) {
+      generators.push_back(new StructuralInductionSchemeGenerator());
+    }
+    if (InductionHelper::isStructInductionRecDefOn()) {
+      generators.push_back(new RecursionInductionSchemeGenerator());
+    }
+    res->_induction = new GeneralInduction(generators, InferenceRule::INDUCTION_AXIOM);
+    gie->addFront(res->_induction);
   }
   if (opt.inductionHypRewriting()) {
     gie->addFront(new InductionHypothesisRewriting());
