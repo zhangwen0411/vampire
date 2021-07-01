@@ -86,52 +86,57 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
 
   auto pairs = selectMainSidePairs(literal, premise);
 
-  for (const auto& kv : pairs) {
-    const auto& main = kv.first;
-    const auto& sides = kv.second;
-    static vvector<pair<InductionScheme, OccurrenceMap>> schOccMap;
-    schOccMap.clear();
-    for (auto& gen : _gen) {
+  for (auto& gen : _gen) {
+    for (const auto& kv : pairs) {
+      const auto& main = kv.first;
+      const auto& sides = kv.second;
+      static vvector<pair<InductionScheme, OccurrenceMap>> schOccMap;
+      schOccMap.clear();
       gen->generate(main, sides, schOccMap);
-    }
 
-    vvector<pair<Literal*, vset<Literal*>>> schLits;
-    for (const auto& kv : schOccMap) {
-      // Retain side literals for further processing if:
-      // (1) they contain some induction term
-      // (2) they have either induction depth 0 or they contain some complex induction term
-      vset<pair<Literal*, Clause*>> sidesFiltered;
-      for (const auto& s : sides) {
-        for (const auto& kv2 : kv.first.inductionTerms()) {
-          if (s.first->containsSubterm(TermList(kv2.first)) && (!skolem(kv2.first) || !s.second->inference().inductionDepth())) {
-            sidesFiltered.insert(s);
-            break;
+      vvector<pair<Literal*, vset<Literal*>>> schLits;
+      for (const auto& kv : schOccMap) {
+        // Retain side literals for further processing if:
+        // (1) they contain some induction term
+        // (2) they have either induction depth 0 or they contain some complex induction term
+        vset<pair<Literal*, Clause*>> sidesFiltered;
+        for (const auto& s : sides) {
+          for (const auto& kv2 : kv.first.inductionTerms()) {
+            if (s.first->containsSubterm(TermList(kv2.first)) && (!skolem(kv2.first) || !s.second->inference().inductionDepth())) {
+              sidesFiltered.insert(s);
+              break;
+            }
           }
         }
-      }
-      schLits.emplace_back(nullptr, vset<Literal*>());
-      if (alreadyDone(literal, sidesFiltered, kv.first, schLits.back())) {
-        continue;
-      }
-      static const bool heuristic = env.options->inductionGenHeur();
-      GeneralizationIterator g(kv.second, heuristic);
-      while (g.hasNext()) {
-        auto eg = g.next();
-        TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, main.literal);
-        auto mainLitGen = tr.transformLit();
-        ASS_NEQ(mainLitGen, main.literal);
-        vvector<pair<Literal*, SLQueryResult>> sidesGeneralized;
-        for (const auto& kv2 : sidesFiltered) {
-          TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, kv2.first);
-          auto sideLitGen = tr.transformLit();
-          ASS_NEQ(sideLitGen, kv2.first);
-          sidesGeneralized.push_back(make_pair(sideLitGen, SLQueryResult(kv2.first, kv2.second)));
+        schLits.emplace_back(nullptr, vset<Literal*>());
+        if (alreadyDone(literal, sidesFiltered, kv.first, schLits.back())) {
+          continue;
         }
-        generateClauses(kv.first, mainLitGen, main, sidesGeneralized, res._clauses);
+        static const bool heuristic = env.options->inductionGenHeur();
+        GeneralizationIterator g(kv.second, heuristic, gen->setsFixOccurrences());
+        while (g.hasNext()) {
+          auto eg = g.next();
+          TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, main.literal);
+          auto mainLitGen = tr.transformLit();
+          ASS_NEQ(mainLitGen, main.literal);
+          vvector<pair<Literal*, SLQueryResult>> sidesGeneralized;
+          for (const auto& kv2 : sidesFiltered) {
+            TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, kv2.first);
+            auto sideLitGen = tr.transformLit();
+            if (sideLitGen != kv2.first) {
+              sidesGeneralized.push_back(make_pair(sideLitGen, SLQueryResult(kv2.first, kv2.second)));
+            }
+          }
+          generateClauses(kv.first, mainLitGen, main, sidesGeneralized, res._clauses);
+        }
       }
-    }
-    for (const auto& schLit : schLits) {
-      _done.insert(schLit.first, schLit.second);
+      for (const auto& schLit : schLits) {
+        if (!_done.insert(schLit.first, schLit.second)) {
+          // TODO(mhajdu): there can be cases where the current set of side literals
+          // is not a superset of the already inducted on ones, in this case the new
+          // ones are not added
+        }
+      }
     }
   }
 }

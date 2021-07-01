@@ -86,13 +86,15 @@ class GeneralizationIterator
 public:
   DECL_ELEMENT_TYPE(OccurrenceMap);
 
-  GeneralizationIterator(const OccurrenceMap& occ, bool heuristic)
-    : _occ(occ), _hasNext(true), _heuristic(heuristic)
+  GeneralizationIterator(const OccurrenceMap& occ, bool heuristic, bool hasFixOccurrences)
+    : _occ(occ), _hasNext(true), _heuristic(heuristic), _hasFixOccurrences(hasFixOccurrences)
   {
-    // eliminate all 0s
-    for (auto& o : _occ) {
-      if (!o.second.num_set_bits()) {
-        ALWAYS(o.second.next());
+    if (!_hasFixOccurrences) {
+      // eliminate all 0s
+      for (auto& o : _occ) {
+        if (!o.second.num_set_bits()) {
+          ALWAYS(o.second.next());
+        }
       }
     }
   }
@@ -120,9 +122,11 @@ public:
         break;
       }
       it->second.reset_bits();
-      // eliminate all 0s as in ctor
-      if (!it->second.num_set_bits()) {
-        ALWAYS(it->second.next());
+      if (!_hasFixOccurrences) {
+        // eliminate all 0s as in ctor
+        if (!it->second.num_set_bits()) {
+          ALWAYS(it->second.next());
+        }
       }
       it++;
     }
@@ -146,6 +150,7 @@ private:
   OccurrenceMap _occ;
   bool _hasNext;
   bool _heuristic;
+  bool _hasFixOccurrences;
 };
 
 class GeneralInduction

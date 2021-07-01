@@ -195,6 +195,7 @@ struct InductionSchemeGenerator {
     const SLQueryResult& main,
     const vset<pair<Literal*,Clause*>>& side,
     vvector<pair<InductionScheme, OccurrenceMap>>& res) = 0;
+  virtual bool setsFixOccurrences() const { return false; }
 };
 
 struct RecursionInductionSchemeGenerator
@@ -206,6 +207,7 @@ struct RecursionInductionSchemeGenerator
   void generate(const SLQueryResult& main,
     const vset<pair<Literal*,Clause*>>& side,
     vvector<pair<InductionScheme, OccurrenceMap>>& res) override;
+  bool setsFixOccurrences() const override { return true; }
 
 private:
   void generate(Clause* premise, Literal* lit,

@@ -118,7 +118,7 @@ TermList TermOccurrenceReplacement::transformSubterm(TermList trm)
   }
   auto rIt = _r.find(trm.term());
   if (rIt != _r.end()) {
-    auto oIt = _o.find(make_pair(_lit,trm.term()));
+    auto oIt = _o.find(make_pair(_lit, trm.term()));
     ASS(oIt != _o.end());
     if (oIt->second.pop_last()) {
       return TermList(rIt->second, false);
@@ -292,29 +292,23 @@ void RecursionInductionSchemeGenerator::generate(
   }
   // filter out schemes that only contain induction
   // terms not present in the main literal
-  for (unsigned i = 0; i < schemes.size();) {
-    auto found = false;
-    for (const auto& kv : schemes[i].inductionTerms()) {
+  schemes.erase(remove_if(schemes.begin(), schemes.end(), [this, &main](const InductionScheme& sch) {
+    for (const auto& kv : sch.inductionTerms()) {
       auto it = _actOccMaps.find(make_pair(main.literal, kv.first));
       if (it != _actOccMaps.end() && it->second.num_set_bits()) {
-        found = true;
-        break;
+        return false;
       }
     }
-    if (!found) {
-      schemes[i] = std::move(schemes[schemes.size()-1]);
-      schemes.pop_back();
-    } else {
-      i++;
-    }
-  }
+    return true;
+  }), schemes.end());
+
   static InductionSchemeFilter f;
   f.filter(schemes, _actOccMaps);
 
   for (const auto& sch : schemes) {
     OccurrenceMap necessary;
     for (const auto& kv : _actOccMaps) {
-      if (sch.inductionTerms().count(kv.first.second) && kv.second.num_set_bits()) {
+      if (sch.inductionTerms().count(kv.first.second)) {
         necessary.insert(kv);
       }
     }
