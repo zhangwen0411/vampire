@@ -692,14 +692,23 @@ InductionScheme IntegerInductionSchemeGenerator::generateInteger(Term* term)
   vvector<Substitution> empty;
   scheme.addCase(std::move(empty), std::move(base));
 
-  // step case
-  TermList x(var++, false);
-  vvector<Substitution> recursiveCalls(1);
-  recursiveCalls.back().bind(0, x);
-  Substitution step;
   TermList one(theory->representConstant(IntegerConstantType(1)));
-  step.bind(0, Term::create2(env.signature->getInterpretingSymbol(Theory::INT_PLUS), x, one));
-  scheme.addCase(std::move(recursiveCalls), std::move(step));
+
+  // step case increasing
+  TermList x_inc(var++, false);
+  vvector<Substitution> recursiveCallsInc(1);
+  recursiveCallsInc.back().bind(0, x_inc);
+  Substitution step_inc;
+  step_inc.bind(0, Term::create2(env.signature->getInterpretingSymbol(Theory::INT_PLUS), x_inc, one));
+  scheme.addCase(std::move(recursiveCallsInc), std::move(step_inc));
+
+  // step case decreasing
+  TermList x_dec(var++, false);
+  vvector<Substitution> recursiveCallsDec(1);
+  recursiveCallsDec.back().bind(0, x_dec);
+  Substitution step_dec;
+  step_dec.bind(0, Term::create2(env.signature->getInterpretingSymbol(Theory::INT_MINUS), x_dec, one));
+  scheme.addCase(std::move(recursiveCallsDec), std::move(step_dec));
 
   scheme.finalize();
   return scheme;
