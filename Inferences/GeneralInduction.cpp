@@ -138,6 +138,10 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
       }
       for (const auto& schLit : schLits) {
         if (!_done.insert(schLit.first, schLit.second)) {
+          auto curr = _done.get(schLit.first);
+          if (includes(schLit.second.begin(), schLit.second.end(), curr.begin(), curr.end())) {
+            _done.set(schLit.first, schLit.second);
+          }
           // TODO(mhajdu): there can be cases where the current set of side literals
           // is not a superset of the already inducted on ones, in this case the new
           // ones are not added
