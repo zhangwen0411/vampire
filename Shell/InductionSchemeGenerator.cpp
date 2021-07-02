@@ -104,9 +104,18 @@ vvector<TermList> getInductionTerms(TermList t)
 
 TermList TermReplacement::transformSubterm(TermList trm)
 {
-  auto rIt = _r.find(trm);
+  if (trm.isVar()) {
+    return trm;
+  }
+  auto t = trm.term();
+  auto rIt = _r.find(t);
   if (rIt != _r.end()) {
-    return rIt->second;
+    TermList srt = env.signature->getFunction(t->functor())->fnType()->result();
+    auto oIt = _ord.find(t);
+    if (oIt == _ord.end()) {
+      oIt = _ord.insert(make_pair(t, _curr.at(srt)++)).first;
+    }
+    return TermList(_m.get(srt)[oIt->second]);
   }
   return trm;
 }

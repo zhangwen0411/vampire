@@ -119,11 +119,22 @@ using OccurrenceMap = vmap<pair<Literal*, Term*>, Occurrences>;
  */
 class TermReplacement : public TermTransformer {
 public:
-  TermReplacement(const vmap<TermList, TermList>& r) : _r(r) {}
+  TermReplacement(const DHMap<TermList, vvector<Term*>>& m, const vmap<Term*, unsigned>& r)
+    : _m(m), _r(r), _ord(), _curr()
+  {
+    auto it = _m.items();
+    while (it.hasNext()) {
+      auto kv = it.next();
+      _curr.insert(make_pair(kv.first, 0));
+    }
+  }
   TermList transformSubterm(TermList trm) override;
 
 private:
-  const vmap<TermList, TermList>& _r;
+  const DHMap<TermList, vvector<Term*>>& _m;
+  const vmap<Term*, unsigned>& _r;
+  vmap<Term*, unsigned> _ord;
+  vmap<TermList, unsigned> _curr;
 };
 
 /**

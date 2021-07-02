@@ -345,28 +345,28 @@ InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Cas
   return InductionScheme::Case(std::move(recursiveCalls), std::move(step));
 }
 
-vmap<TermList, TermList> createBlanksForScheme(const InductionScheme& sch, DHMap<pair<TermList, unsigned>, TermList>& blanks)
+void reserveBlanksForScheme(const InductionScheme& sch, DHMap<TermList, vvector<Term*>>& blanks)
 {
   vmap<TermList, unsigned> srts;
-  vmap<TermList, TermList> replacements;
   for (const auto& kv : sch.inductionTerms()) {
     TermList srt = env.signature->getFunction(kv.first->functor())->fnType()->result();
-    auto it = srts.find(srt);
-    if (it == srts.end()) {
-      it = srts.insert(make_pair(srt,0)).first;
-    } else {
-      it->second++;
+    auto res = srts.insert(make_pair(srt,1));
+    if (!res.second) {
+      res.first->second++;
     }
-    const auto p = make_pair(srt, it->second);
-    if (!blanks.find(p)) {
-      unsigned fresh = env.signature->addFreshFunction(0,"blank",to_string(it->second).c_str());
-      env.signature->getFunction(fresh)->setType(OperatorType::getConstantsType(srt));
-      TermList blank = TermList(Term::createConstant(fresh));
-      blanks.insert(p,blank);
-    }
-    replacements.insert(make_pair(kv.first, blanks.get(p)));
   }
-  return replacements;
+  for (const auto kv : srts) {
+    if (!blanks.find(kv.first)) {
+      blanks.insert(kv.first, vvector<Term*>());
+    }
+    auto& v = blanks.get(kv.first);
+    v.reserve(kv.second);
+    while (v.size() < kv.second) {
+      unsigned fresh = env.signature->addFreshFunction(0, "blank");
+      env.signature->getFunction(fresh)->setType(OperatorType::getConstantsType(kv.first));
+      v.push_back(Term::createConstant(fresh));
+    }
+  }
 }
 
 bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Clause*>>& sides,
@@ -374,10 +374,10 @@ bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Cl
 {
   CALL("GeneralInduction::alreadyDone");
 
-  static DHMap<pair<TermList, unsigned>, TermList> blanks;
-  auto replacements = createBlanksForScheme(sch, blanks);
+  static DHMap<TermList, vvector<Term*>> blanks;
+  reserveBlanksForScheme(sch, blanks);
 
-  TermReplacement cr(replacements);
+  TermReplacement cr(blanks, sch.inductionTerms());
   res.first = cr.transform(mainLit);
 
   for (const auto& kv : sides) {
