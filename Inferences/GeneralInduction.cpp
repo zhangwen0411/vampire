@@ -283,6 +283,16 @@ void GeneralInduction::generateClauses(
     }
   }
   auto resSubst = ResultSubstitution::fromSubstitution(&subst, 0, 1);
+  auto skMain = InductionHelper::collectSkolems(mainQuery.literal, mainQuery.clause);
+  for (unsigned i = 0; i < mainQuery.clause->length(); i++) {
+    auto lit = (*mainQuery.clause)[i];
+    if (lit != mainQuery.literal) {
+      auto skLit = InductionHelper::collectSkolems(lit, mainQuery.clause);
+      for (const auto& fn : skLit) {
+        skMain.erase(fn);
+      }
+    }
+  }
   while(cit.hasNext()){
     Clause* c = cit.next();
     auto qr = mainQuery;
@@ -302,6 +312,9 @@ void GeneralInduction::generateClauses(
       if (_splitter && ++i < sideLitQrPairs.size()) {
         _splitter->onNewClause(c);
       }
+    }
+    for (const auto& fn : skMain) {
+      c->inference().removeFromInductionInfo(fn);
     }
     if(env.options->showInduction()){
       env.beginOutput();
