@@ -252,10 +252,7 @@ ClauseIterator InductionHypothesisRewriting::perform(const vset<unsigned>& sig,
     newCl->setStore(Clause::ACTIVE);
   }
   for (const auto& fn : sig) {
-    // cout << newCl->inference().toString() << " " << *Term::create(fn, 0, nullptr) << endl;
     newCl->inference().removeFromInductionInfo(fn);
-    // cout << newCl->inference().toString() << " " << *Term::create(fn, 0, nullptr) << endl;
-    // cout << *newCl << endl;
   }
   res = pvi(getConcatenatedIterator(generateClauses(tgtLitS, newCl), _induction->generateClauses(newCl)));
   newCl->setStore(Clause::NONE);

@@ -223,8 +223,15 @@ void GeneralInduction::generateClauses(
         newLits.push_back(st);
       }
       if (env.options->inductionHypRewriting() && mainLit->isEquality()) {
-        litToSkolemsMap.insert(make_pair(newHypLit, skIntroduced));
-        litToSkolemsMap.insert(make_pair(newMainLit, skIntroduced));
+        litToSkolemsMap.insert(make_pair(newHypLit, vset<unsigned>()));
+        litToSkolemsMap.insert(make_pair(newMainLit, vset<unsigned>()));
+        for (const auto& fn : skIntroduced) {
+          TermList t(Term::create(fn, 0, nullptr));
+          if (newHypLit->containsSubterm(t)) {
+            litToSkolemsMap.at(newHypLit).insert(fn);
+            litToSkolemsMap.at(newMainLit).insert(fn);
+          }
+        }
       }
     }
     lits = newLits;
