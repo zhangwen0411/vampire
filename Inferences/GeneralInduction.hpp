@@ -40,6 +40,7 @@ using namespace Kernel;
 using namespace Saturation;
 
 class NoGeneralizationIterator
+  : public IteratorCore<OccurrenceMap>
 {
 public:
   DECL_ELEMENT_TYPE(OccurrenceMap);
@@ -47,14 +48,14 @@ public:
   NoGeneralizationIterator(const OccurrenceMap& occ)
     : _occ(occ), _hasNext(true) {}
 
-  inline bool hasNext()
+  inline bool hasNext() override
   {
     return _hasNext;
   }
 
-  inline OWN_ELEMENT_TYPE next()
+  inline OWN_ELEMENT_TYPE next() override
   {
-    CALL("GeneralizationIterator::next()");
+    CALL("NoGeneralizationIterator::next()");
     ASS(_hasNext);
 
     auto it = _occ.begin();
@@ -82,6 +83,7 @@ private:
 };
 
 class GeneralizationIterator
+  : public IteratorCore<OccurrenceMap>
 {
 public:
   DECL_ELEMENT_TYPE(OccurrenceMap);
@@ -99,12 +101,12 @@ public:
     }
   }
 
-  inline bool hasNext()
+  inline bool hasNext() override
   {
     return _hasNext;
   }
 
-  inline OWN_ELEMENT_TYPE next()
+  inline OWN_ELEMENT_TYPE next() override
   {
     CALL("GeneralizationIterator::next()");
     ASS(_hasNext);

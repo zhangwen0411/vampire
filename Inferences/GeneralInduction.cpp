@@ -112,10 +112,16 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
         if (alreadyDone(literal, sidesFiltered, kv.first, schLits.back())) {
           continue;
         }
-        static const bool heuristic = env.options->inductionGenHeur();
-        GeneralizationIterator g(kv.second, heuristic, gen->setsFixOccurrences());
-        while (g.hasNext()) {
-          auto eg = g.next();
+        static const bool generalize = env.options->inductionGen();
+        ScopedPtr<IteratorCore<OccurrenceMap>> g;
+        if (generalize) {
+          static const bool heuristic = env.options->inductionGenHeur();
+          g = new GeneralizationIterator(kv.second, heuristic, gen->setsFixOccurrences());
+        } else {
+          g = new NoGeneralizationIterator(kv.second);
+        }
+        while (g->hasNext()) {
+          auto eg = g->next();
           TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, main.literal);
           auto mainLitGen = tr.transformLit();
           ASS_NEQ(mainLitGen, main.literal);
