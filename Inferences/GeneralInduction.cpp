@@ -157,8 +157,8 @@ void GeneralInduction::attach(SaturationAlgorithm* salg)
 
   GeneratingInferenceEngine::attach(salg);
   _splitter=_salg->getSplitter();
-  _index = static_cast<DemodulationSubtermIndex *>(
-      _salg->getIndexManager()->request(DEMODULATION_SUBTERM_SUBST_TREE));
+  _index = static_cast<TermIndex *>(
+      _salg->getIndexManager()->request(SUPERPOSITION_SUBTERM_SUBST_TREE));
 }
 
 void GeneralInduction::detach()
@@ -166,7 +166,7 @@ void GeneralInduction::detach()
   CALL("GeneralInduction::detach");
 
   _index = 0;
-  _salg->getIndexManager()->release(DEMODULATION_SUBTERM_SUBST_TREE);
+  _salg->getIndexManager()->release(SUPERPOSITION_SUBTERM_SUBST_TREE);
   _splitter=0;
   GeneratingInferenceEngine::detach();
 }
@@ -410,7 +410,6 @@ bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Cl
 inline bool sideLitCondition(Literal* main, Clause* mainCl, Literal* side, Clause* sideCl) {
   vset<unsigned> sig, sigOther;
   return side->ground() &&
-    env.options->inductionMultiClause() &&
     main != side &&
     mainCl != sideCl &&
     ((!mainCl->inference().inductionDepth() && !sideCl->inference().inductionDepth()) ||
@@ -422,13 +421,16 @@ inline bool sideLitCondition(Literal* main, Clause* mainCl, Literal* side, Claus
 vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> GeneralInduction::selectMainSidePairs(Literal* literal, Clause* premise)
 {
   vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> res;
+  static const bool indmc = env.options->inductionMultiClause();
 
   TermQueryResultIterator it = TermQueryResultIterator::getEmpty();
-  SubtermIterator stit(literal);
-  while (stit.hasNext()) {
-    auto st = stit.next();
-    if (st.isTerm() && skolem(st.term())) {
-      it = pvi(getConcatenatedIterator(it, _index->getGeneralizations(st)));
+  if (indmc) {
+    SubtermIterator stit(literal);
+    while (stit.hasNext()) {
+      auto st = stit.next();
+      if (st.isTerm() && skolem(st.term())) {
+        it = pvi(getConcatenatedIterator(it, _index->getGeneralizations(st)));
+      }
     }
   }
 
@@ -437,14 +439,14 @@ vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> GeneralInduction::sel
     res.emplace_back(SLQueryResult(literal, premise), vset<pair<Literal*,Clause*>>());
     while (it.hasNext()) {
       auto qr = it.next();
-      if (qr.clause->store() == Clause::ACTIVE && sideLitCondition(literal, premise, qr.literal, qr.clause)) {
+      if (InductionHelper::isInductionClause(qr.clause) && sideLitCondition(literal, premise, qr.literal, qr.clause)) {
         res.back().second.emplace(qr.literal, qr.clause);
       }
     }
   } else {
     while (it.hasNext()) {
       auto qr = it.next();
-      if (qr.clause->store() == Clause::ACTIVE &&
+      if (InductionHelper::isInductionClause(qr.clause) &&
           InductionHelper::isInductionLiteral(qr.literal) &&
           sideLitCondition(qr.literal, qr.clause, literal, premise)) {
         res.emplace_back(SLQueryResult(qr.literal, qr.clause), vset<pair<Literal*,Clause*>>());

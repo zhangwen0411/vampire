@@ -208,7 +208,7 @@ private:
   Splitter* _splitter;
   InferenceRule _rule;
   DHMap<Literal*, vset<Literal*>> _done;
-  DemodulationSubtermIndex* _index;
+  TermIndex* _index;
 };
 
 }
