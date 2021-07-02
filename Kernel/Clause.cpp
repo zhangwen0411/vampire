@@ -75,8 +75,7 @@ Clause::Clause(unsigned length,const Inference& inf)
     _literalPositions(0),
     _numActiveSplits(0),
     _auxTimestamp(0),
-    _functionDefLitOrientationMap(0),
-    _inductionHypothesisMap(0)
+    _functionDefLitOrientationMap(0)
 {
   // MS: TODO: not sure if this belongs here and whether EXTENSIONALITY_AXIOM input types ever appear anywhere (as a vampire-extension TPTP formula role)
   if(inference().inputType() == UnitInputType::EXTENSIONALITY_AXIOM){
@@ -350,10 +349,6 @@ vstring Clause::literalsOnlyToString() const
         result +="[r]";
       }
     }
-    vset<unsigned> sig;
-    if (isInductionLiteral(_literals[0], sig)) {
-      result += " [i][" + Int::toString(sig.size()) + "]";
-    }
     for(unsigned i = 1; i < _length; i++) {
       result += " | ";
       result += _literals[i]->toString();
@@ -362,9 +357,6 @@ vstring Clause::literalsOnlyToString() const
         if (isReversedFunctionDefinition(_literals[i])) {
           result +="[r]";
         }
-      }
-      if (isInductionLiteral(_literals[i], sig)) {
-        result += " [i][" + Int::toString(sig.size()) + "]";
       }
     }
     return result;
@@ -459,6 +451,13 @@ vstring Clause::toString() const
     result += ",allAx:" + Int::toString((int)(_inference.all_ancestors));
 
     result += ",thDist:" + Int::toString( _inference.th_ancestors * env.options->theorySplitQueueExpectedRatioDenom() - _inference.all_ancestors);
+    if (_inference.inductionInfo()) {
+      auto it = _inference.inductionInfo()->iterator();
+      result += ",ind:";
+      while (it.hasNext()) {
+        result += Term::create(it.next(), 0, nullptr)->toString() + ",";
+      }
+    }
     result += vstring("}");
   }
 

@@ -21,6 +21,8 @@
 
 #include "Lib/Allocator.hpp"
 #include "Lib/VString.hpp"
+// #include "Lib/STL.hpp"
+#include "Lib/DHSet.hpp"
 #include "Forwards.hpp"
 
 #include <type_traits>
@@ -736,6 +738,7 @@ private:
     _rule = r;
     _included = false;
     _inductionDepth = 0;
+    _inductionInfo = nullptr;
     _XXNarrows = 0;
     _reductions = 0;
     _sineLevel = std::numeric_limits<decltype(_sineLevel)>::max();
@@ -961,6 +964,23 @@ public:
   unsigned inductionDepth() const { return _inductionDepth; }
   void setInductionDepth(unsigned d) { _inductionDepth = d; }
 
+  DHSet<unsigned>* inductionInfo() const { return _inductionInfo; }
+  void addToInductionInfo(unsigned e) {
+    if (!_inductionInfo) {
+      _inductionInfo = new DHSet<unsigned>();
+    }
+    _inductionInfo->insert(e);
+  }
+  void removeFromInductionInfo(unsigned e) {
+    if (_inductionInfo) {
+      _inductionInfo->remove(e);
+      if (_inductionInfo->size() == 0) {
+        delete _inductionInfo;
+        _inductionInfo = nullptr;
+      }
+    }
+  }
+
   unsigned xxNarrows() const { return _XXNarrows; }
   /** used to propagate in AVATAR **/
   void setXXNarrows(unsigned n) { _XXNarrows = n; }
@@ -1005,6 +1025,7 @@ private:
   unsigned _holAxiomsDescendant : 1;
   /** Induction depth **/
   unsigned _inductionDepth : 5;
+  DHSet<unsigned>* _inductionInfo;
 
   /** Sine level computed in SineUtils and used in various heuristics.
    * May stay uninitialized (i.e. always MAX), if not needed

@@ -208,23 +208,11 @@ bool ForwardDemodulationImpl<combinatorySupSupport>::perform(Clause* cl, Clause*
 
 
         (*res)[0]=resLit;
-        vset<unsigned> sig;
-        if (cl->isInductionLiteral(lit, sig)) {
-          for (const auto& s : sig) {
-            res->markInductionLiteral(s, resLit);
-          }
-        }
-
         unsigned next=1;
         for(unsigned i=0;i<cLen;i++) {
           Literal* curr=(*cl)[i];
           if(curr!=lit) {
             (*res)[next++] = curr;
-            if (cl->isInductionLiteral(curr, sig)) {
-              for (const auto& s : sig) {
-                res->markInductionLiteral(s, curr);
-              }
-            }
           }
         }
         ASS_EQ(next,cLen);

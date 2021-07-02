@@ -1298,16 +1298,16 @@ Clause* Splitter::buildAndInsertComponentClause(SplitLevel name, unsigned size, 
   }
   _compNames.insert(compCl, name);
 
-  auto it = getArrayishObjectIterator(lits, size);
-  while (it.hasNext()) {
-    auto lit = it.next();
-    vset<unsigned> sig;
-    if (orig->isInductionLiteral(lit, sig)) {
-      for (const auto& s : sig) {
-        compCl->markInductionLiteral(s, lit);
-      }
-    }
-  }
+  // auto it = getArrayishObjectIterator(lits, size);
+  // while (it.hasNext()) {
+  //   auto lit = it.next();
+  //   vset<unsigned> sig;
+  //   if (orig->isInductionLiteral(lit, sig)) {
+  //     for (const auto& s : sig) {
+  //       compCl->markInductionLiteral(s, lit);
+  //     }
+  //   }
+  // }
 
   return compCl;
 }

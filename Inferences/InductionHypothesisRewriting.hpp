@@ -67,7 +67,7 @@ public:
 
 private:
   ClauseIterator generateClauses(Literal* lit, Clause* premise);
-  ClauseIterator perform(unsigned sig,
+  ClauseIterator perform(const vset<unsigned>& sig,
       Clause *rwClause, Literal *rwLiteral, TermList rwSide, TermList rwTerm,
       Clause *eqClause, Literal *eqLiteral, TermList eqLHS,
       ResultSubstitutionSP subst, bool eqIsResult);

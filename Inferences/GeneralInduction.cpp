@@ -191,12 +191,13 @@ void GeneralInduction::generateClauses(
   }
 
   vvector<LiteralStack> lits(1);
-  vmap<Literal*, Literal*> hypToConcMap;
+  vmap<Literal*, vset<unsigned>> litToSkolemsMap;
 
   for (const auto& c : scheme.cases()) {
     vvector<LiteralStack> newLits;
 
-    auto sk = skolemizeCase(c, scheme.inductionTerms());
+    vset<unsigned> skIntroduced;
+    auto sk = skolemizeCase(c, scheme.inductionTerms(), skIntroduced);
     auto newMainLit = SubstHelper::apply<Substitution>(mainLit, sk._step);
     for (auto st : lits) {
       st.push(newMainLit);
@@ -221,8 +222,9 @@ void GeneralInduction::generateClauses(
         }
         newLits.push_back(st);
       }
-      if (env.options->inductionHypRewriting()) {
-        hypToConcMap.insert(make_pair(newHypLit, newMainLit));
+      if (env.options->inductionHypRewriting() && mainLit->isEquality()) {
+        litToSkolemsMap.insert(make_pair(newHypLit, skIntroduced));
+        litToSkolemsMap.insert(make_pair(newMainLit, skIntroduced));
       }
     }
     lits = newLits;
@@ -245,14 +247,12 @@ void GeneralInduction::generateClauses(
   for (const auto& st : lits) {
     temp.push(Clause::fromStack(st, inf));
   }
-  for (const auto& kv : hypToConcMap) {
-    auto h = Hash::hash(kv);
+  for (const auto& kv : litToSkolemsMap) {
     for (auto& c : temp) {
       if (c->contains(kv.first)) {
-        c->markInductionLiteral(h, kv.first);
-      }
-      if (c->contains(kv.second)) {
-        c->markInductionLiteral(h, kv.second);
+        for (const auto& e : kv.second) {
+          c->inference().addToInductionInfo(e);
+        }
       }
     }
   }
@@ -306,7 +306,7 @@ void GeneralInduction::generateClauses(
   env.statistics->induction++;
 }
 
-TermList mapVarsToSkolems(Substitution& subst, TermList t, TermList sort) {
+TermList mapVarsToSkolems(Substitution& subst, TermList t, TermList sort, vset<unsigned>& introducedSkolems) {
   DHMap<unsigned,TermList> varSorts;
   SortHelper::collectVariableSorts(t, sort, varSorts);
 
@@ -315,21 +315,22 @@ TermList mapVarsToSkolems(Substitution& subst, TermList t, TermList sort) {
     auto v = it.next();
     TermList temp;
     if (!subst.findBinding(v.first, temp)) {
-      subst.bind(v.first, Term::create(
-        Skolem::addSkolemFunction(0, 0, nullptr, v.second), 0, nullptr));
+      auto fn = Skolem::addSkolemFunction(0, 0, nullptr, v.second);
+      subst.bind(v.first, Term::create(fn, 0, nullptr));
+      introducedSkolems.insert(fn);
     }
   }
   return SubstHelper::apply<Substitution>(t, subst);
 }
 
-InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Case& c, const vmap<Term*, unsigned>& inductionTerms)
+InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Case& c, const vmap<Term*, unsigned>& inductionTerms, vset<unsigned>& introducedSkolems)
 {
   Substitution subst, step;
   TermList t;
   for (const auto& kv : inductionTerms) {
     if (c._step.findBinding(kv.second, t)) {
       auto sort = SortHelper::getResultSort(kv.first);
-      step.bind(kv.second, mapVarsToSkolems(subst, t, sort));
+      step.bind(kv.second, mapVarsToSkolems(subst, t, sort, introducedSkolems));
     }
   }
   vvector<Substitution> recursiveCalls;
@@ -338,7 +339,7 @@ InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Cas
     for (const auto& kv : inductionTerms) {
       if (recCall.findBinding(kv.second, t)) {
         auto sort = SortHelper::getResultSort(kv.first);
-        recursiveCalls.back().bind(kv.second, mapVarsToSkolems(subst, t, sort));
+        recursiveCalls.back().bind(kv.second, mapVarsToSkolems(subst, t, sort, introducedSkolems));
       }
     }
   }
@@ -408,14 +409,13 @@ bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Cl
 }
 
 inline bool sideLitCondition(Literal* main, Clause* mainCl, Literal* side, Clause* sideCl) {
-  vset<unsigned> sig, sigOther;
-  return side->ground() &&
-    main != side &&
-    mainCl != sideCl &&
+  auto mainSk = InductionHelper::collectSkolems(main, mainCl);
+  auto sideSk = InductionHelper::collectSkolems(side, sideCl);
+  return side->ground() && main != side && mainCl != sideCl &&
     ((!mainCl->inference().inductionDepth() && !sideCl->inference().inductionDepth()) ||
-    (sideCl->isInductionLiteral(side, sigOther) &&
-      mainCl->isInductionLiteral(main, sig) &&
-      includes(sig.begin(), sig.end(), sigOther.begin(), sigOther.end()) && !main->isEquality()));
+    (InductionHelper::isInductionLiteral(side, sideCl) &&
+      InductionHelper::isInductionLiteral(main, mainCl) &&
+      includes(mainSk.begin(), mainSk.end(), sideSk.begin(), sideSk.end()) && !main->isEquality()));
 }
 
 vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> GeneralInduction::selectMainSidePairs(Literal* literal, Clause* premise)

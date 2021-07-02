@@ -168,11 +168,7 @@ void IHLHSIndex::handleClause(Clause* c, bool adding)
 
   for (unsigned i = 0; i < c->length(); i++) {
     Literal* lit=(*c)[i];
-    if (!lit->isEquality() || lit->isNegative()) {
-      continue;
-    }
-    vset<unsigned> sig;
-    if (!c->isInductionLiteral(lit, sig)) {
+    if (!lit->isEquality() || lit->isNegative() || !InductionHelper::isInductionLiteral(lit, c)) {
       continue;
     }
     TermIterator lhsi = EqHelper::getEqualityArgumentIterator(lit);
@@ -202,11 +198,7 @@ void ICSubtermIndex::handleClause(Clause* c, bool adding)
   for (unsigned i = 0; i < c->length(); i++) {
     inserted.reset();
     Literal* lit=(*c)[i];
-    if (!lit->isEquality() || lit->isPositive()) {
-      continue;
-    }
-    vset<unsigned> sig;
-    if (!c->isInductionLiteral(lit, sig)) {
+    if (!lit->isEquality() || lit->isPositive() || !InductionHelper::isInductionLiteral(lit, c)) {
       continue;
     }
     NonVariableIterator nvi(lit);

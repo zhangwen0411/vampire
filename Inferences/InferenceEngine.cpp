@@ -535,12 +535,6 @@ Clause* TrivialInequalitiesRemovalISE::simplify(Clause* c)
 		            SimplifyingInference1(InferenceRule::TRIVIAL_INEQUALITY_REMOVAL,c));
   for (int i = newLength-1;i >= 0;i--) {
     (*d)[i] = lits[newLength-i-1];
-    vset<unsigned> sig;
-    if (c->isInductionLiteral(lits[newLength-i-1], sig)) {
-      for (const auto& s : sig) {
-        d->markInductionLiteral(s, lits[newLength-i-1]);
-      }
-    }
   }
   env.statistics->trivialInequalities += found;
 

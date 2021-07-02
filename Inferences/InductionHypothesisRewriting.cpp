@@ -36,6 +36,7 @@
 #include "Shell/Options.hpp"
 
 #include "InductionHypothesisRewriting.hpp"
+#include "InductionHelper.hpp"
 
 #if VDEBUG
 #include <iostream>
@@ -63,8 +64,8 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
   if (!lit->isEquality()) {
     return res;
   }
-  vset<unsigned> sig;
-  if (premise->isInductionLiteral(lit, sig)) {
+  if (InductionHelper::isInductionLiteral(lit, premise)) {
+    auto sk = InductionHelper::collectSkolems(lit, premise);
     TermIterator lhsi = EqHelper::getEqualityArgumentIterator(lit);
     while (lhsi.hasNext()) {
       TermList litarg = lhsi.next();
@@ -75,30 +76,28 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
           auto ts = _lhsIndex->getGeneralizations(t);
           while (ts.hasNext()) {
             auto qr = ts.next();
-            vset<unsigned> sigOther;
-            if (!qr.clause->isInductionLiteral(qr.literal, sigOther)) {
+            if (!InductionHelper::isInductionLiteral(qr.literal, qr.clause)) {
               continue;
             }
-            ASS(sigOther.size() == 1);
-            unsigned sigUsed = *sigOther.begin();
-            if (!sig.count(sigUsed)) {
+
+            auto skOther = InductionHelper::collectSkolems(qr.literal, qr.clause);
+            if (!includes(sk.begin(), sk.end(), skOther.begin(), skOther.end())) {
               continue;
             }
             res = pvi(getConcatenatedIterator(res,
-              perform(sigUsed, premise, lit, litarg, t, qr.clause, qr.literal, qr.term, qr.substitution, true)));
+              perform(skOther, premise, lit, litarg, t, qr.clause, qr.literal, qr.term, qr.substitution, true)));
           }
         }
       } else {
-        ASS(sig.size() == 1);
-        unsigned sigUsed = *sig.begin();
         auto ts = _stIndex->getInstances(litarg);
         while (ts.hasNext()) {
           auto qr = ts.next();
-          vset<unsigned> sigOther;
-          if (!qr.clause->isInductionLiteral(qr.literal, sigOther)) {
+          if (!InductionHelper::isInductionLiteral(qr.literal, qr.clause)) {
             continue;
           }
-          if (!sigOther.count(sigUsed)) {
+
+          auto skOther = InductionHelper::collectSkolems(qr.literal, qr.clause);
+          if (!includes(skOther.begin(), skOther.end(), sk.begin(), sk.end())) {
             continue;
           }
           for (unsigned k = 0; k <= 1; k++) {
@@ -107,7 +106,7 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
               continue;
             }
             res = pvi(getConcatenatedIterator(res,
-              perform(sigUsed, qr.clause, qr.literal, side, qr.term, premise, lit, litarg, qr.substitution, false)));
+              perform(sk, qr.clause, qr.literal, side, qr.term, premise, lit, litarg, qr.substitution, false)));
           }
         }
       }
@@ -116,7 +115,7 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Claus
   return res;
 }
 
-ClauseIterator InductionHypothesisRewriting::perform(unsigned sig,
+ClauseIterator InductionHypothesisRewriting::perform(const vset<unsigned>& sig,
     Clause *rwClause, Literal *rwLit, TermList rwSide, TermList rwTerm,
     Clause *eqClause, Literal *eqLit, TermList eqLHS,
     ResultSubstitutionSP subst, bool eqIsResult)
@@ -252,9 +251,12 @@ ClauseIterator InductionHypothesisRewriting::perform(unsigned sig,
     newCl = temp;
     newCl->setStore(Clause::ACTIVE);
   }
-  newCl->inductionInfo() = new DHMap<Literal*,vset<unsigned>>(*rwClause->inductionInfo());
-  newCl->inductionInfo()->insert(tgtLitS, newCl->inductionInfo()->get(rwLit));
-  newCl->inductionInfo()->get(tgtLitS).erase(sig);
+  for (const auto& fn : sig) {
+    // cout << newCl->inference().toString() << " " << *Term::create(fn, 0, nullptr) << endl;
+    newCl->inference().removeFromInductionInfo(fn);
+    // cout << newCl->inference().toString() << " " << *Term::create(fn, 0, nullptr) << endl;
+    // cout << *newCl << endl;
+  }
   res = pvi(getConcatenatedIterator(generateClauses(tgtLitS, newCl), _induction->generateClauses(newCl)));
   newCl->setStore(Clause::NONE);
 

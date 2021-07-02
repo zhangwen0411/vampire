@@ -210,6 +210,38 @@ bool InductionHelper::isInductionLiteral(Literal* l) {
          );
 }
 
+bool InductionHelper::isInductionLiteral(Literal* l, Clause* cl) {
+  CALL("InductionHelper::isInductionLiteral");
+  auto info = cl->inference().inductionInfo();
+  if (info) {
+    auto it = info->iterator();
+    while (it.hasNext()) {
+      TermList t(Term::create(it.next(), 0, nullptr));
+      if (l->containsSubterm(t)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+vset<unsigned> InductionHelper::collectSkolems(Literal* l, Clause* cl) {
+  CALL("InductionHelper::collectSkolems");
+  auto info = cl->inference().inductionInfo();
+  vset<unsigned> res;
+  if (info) {
+    auto it = info->iterator();
+    while (it.hasNext()) {
+      auto fn = it.next();
+      TermList t(Term::create(fn, 0, nullptr));
+      if (l->containsSubterm(t)) {
+        res.insert(fn);
+      }
+    }
+  }
+  return res;
+}
+
 bool InductionHelper::isInductionTermFunctor(unsigned f) {
   CALL("InductionHelper::isInductionTermFunctor");
   static Options::InductionChoice kind = env.options->inductionChoice();
