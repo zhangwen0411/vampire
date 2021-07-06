@@ -139,6 +139,8 @@ TermList TermOccurrenceReplacement::transformSubterm(TermList trm)
 bool InductionScheme::Case::contains(const InductionScheme::Case& other,
   const vmap<Term*, unsigned>& indTerms1, const vmap<Term*, unsigned>& indTerms2) const
 {
+  CALL("InductionScheme::Case::contains");
+
   RobSubstitution subst;
   auto repr1 = createRepresentingTerm(indTerms1, _step);
   auto repr2 = createRepresentingTerm(indTerms2, other._step);
@@ -167,20 +169,22 @@ bool InductionScheme::Case::contains(const InductionScheme::Case& other,
 
 bool InductionScheme::finalize()
 {
+  CALL("InductionScheme::finalize");
+
   if (_noChecks) {
     _finalized = true;
     return true;
   }
-  for (unsigned i = 0; i < _cases.size(); i++) {
-    for (unsigned j = i+1; j < _cases.size();) {
-      if (_cases[i].contains(_cases[j], _inductionTerms, _inductionTerms)) {
-        _cases[j] = std::move(_cases[_cases.size()-1]);
-        _cases.pop_back();
-      } else {
-        j++;
-      }
-    }
-  }
+  // for (unsigned i = 0; i < _cases.size(); i++) {
+  //   for (unsigned j = i+1; j < _cases.size();) {
+  //     if (_cases[i].contains(_cases[j], _inductionTerms, _inductionTerms)) {
+  //       _cases[j] = std::move(_cases[_cases.size()-1]);
+  //       _cases.pop_back();
+  //     } else {
+  //       j++;
+  //     }
+  //   }
+  // }
   ALWAYS(addBaseCases());
   _cases.shrink_to_fit();
   vvector<pair<TermList,TermList>> relatedTerms;
@@ -397,7 +401,12 @@ void RecursionInductionSchemeGenerator::addScheme(Literal* lit, Term* t, const I
         if (indPos[i]) {
           ASS((*genTerm->nthArgument(i)).isVar());
           auto v = (*genTerm->nthArgument(i)).var();
-          mainSubst.bind(v, *headerST->nthArgument(i));
+          TermList b;
+          if (!mainSubst.findBinding(v, b)) {
+            mainSubst.bind(v, *headerST->nthArgument(i));
+          } else {
+            ASS_EQ(b, *headerST->nthArgument(i));
+          }
         }
       }
       vvector<Substitution> hypSubsts;
@@ -413,7 +422,13 @@ void RecursionInductionSchemeGenerator::addScheme(Literal* lit, Term* t, const I
           if (indPos[i]) {
             ASS((*genTerm->nthArgument(i)).isVar());
             auto v = (*genTerm->nthArgument(i)).var();
-            hypSubsts.back().bind(v, *recCallST->nthArgument(i));
+            TermList b;
+            if (!hypSubsts.back().findBinding(v, b)) {
+              hypSubsts.back().bind(v, *recCallST->nthArgument(i));
+            } else if (b != *recCallST->nthArgument(i)) {
+              hypSubsts.pop_back();
+              break;
+            }
           }
         }
       }
