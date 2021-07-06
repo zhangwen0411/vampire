@@ -1004,11 +1004,6 @@ bool SaturationAlgorithm::forwardSimplify(Clause* cl)
     return false;
   }
 
-  if (cl->containsFunctionDefinition()) {
-    cl->incRefCnt(); // see below
-    return true;
-  }
-
   FwSimplList::Iterator fsit(_fwSimplifiers);
 
   while (fsit.hasNext()) {
@@ -1071,10 +1066,6 @@ bool SaturationAlgorithm::forwardSimplify(Clause* cl)
 void SaturationAlgorithm::backwardSimplify(Clause* cl)
 {
   CALL("SaturationAlgorithm::backwardSimplify");
-
-  if (cl->containsFunctionDefinition()) {
-    return;
-  }
 
   BwSimplList::Iterator bsit(_bwSimplifiers);
   while (bsit.hasNext()) {
@@ -1188,7 +1179,7 @@ void SaturationAlgorithm::activate(Clause* cl)
     return removeSelected(cl);
   }
 
-  if (_splitter && _opt.splitAtActivation() && !cl->containsFunctionDefinition()) {
+  if (_splitter && _opt.splitAtActivation()) {
     if (_splitter->doSplitting(cl)) {
       return removeSelected(cl);
     }
@@ -1207,13 +1198,10 @@ void SaturationAlgorithm::activate(Clause* cl)
   env.statistics->activeClauses++;
   _active->add(cl);
 
-    ClauseIterator toAdd = ClauseIterator::getEmpty();
-    bool premiseRedundant = false;
-    if (_generator->canGenerateFromClause(cl)) {
-      auto generated = _generator->generateSimplify(cl);
-      toAdd = generated.clauses;
-      premiseRedundant = generated.premiseRedundant;
-    }
+
+    auto generated = _generator->generateSimplify(cl);
+
+    ClauseIterator toAdd = generated.clauses;
 
     while (toAdd.hasNext()) {
       Clause* genCl=toAdd.next();
@@ -1245,7 +1233,7 @@ void SaturationAlgorithm::activate(Clause* cl)
     removeActiveOrPassiveClause(cl);
   }
 
-  if (premiseRedundant) {
+  if (generated.premiseRedundant) {
     _active->remove(cl);
   }
 
@@ -1621,6 +1609,7 @@ SaturationAlgorithm* SaturationAlgorithm::createFromOptions(Problem& prb, const 
   }
   if (env.options->functionDefinitionRewriting()) {
     gie->addFront(new FnDefRewriting());
+    res->addForwardSimplifierToFront(new FnDefRewriting());
   }
 
   CompositeSGI* sgi = new CompositeSGI();

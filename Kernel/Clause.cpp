@@ -74,8 +74,7 @@ Clause::Clause(unsigned length,const Inference& inf)
     _reductionTimestamp(0),
     _literalPositions(0),
     _numActiveSplits(0),
-    _auxTimestamp(0),
-    _functionDefLitOrientationMap(0)
+    _auxTimestamp(0)
 {
   // MS: TODO: not sure if this belongs here and whether EXTENSIONALITY_AXIOM input types ever appear anywhere (as a vampire-extension TPTP formula role)
   if(inference().inputType() == UnitInputType::EXTENSIONALITY_AXIOM){
@@ -124,10 +123,6 @@ void Clause::destroyExceptInferenceObject()
 {
   if (_literalPositions) {
     delete _literalPositions;
-  }
-  if (_functionDefLitOrientationMap) {
-    delete _functionDefLitOrientationMap;
-    _functionDefLitOrientationMap = 0;
   }
 
   RSTAT_CTR_INC("clauses deleted");
@@ -343,21 +338,9 @@ vstring Clause::literalsOnlyToString() const
   } else {
     vstring result;
     result += _literals[0]->toString();
-    if (isFunctionDefinition(_literals[0])) {
-      result += " [fn]";
-      if (isReversedFunctionDefinition(_literals[0])) {
-        result +="[r]";
-      }
-    }
     for(unsigned i = 1; i < _length; i++) {
       result += " | ";
       result += _literals[i]->toString();
-      if (isFunctionDefinition(_literals[i])) {
-        result += " [fn]";
-        if (isReversedFunctionDefinition(_literals[i])) {
-          result +="[r]";
-        }
-      }
     }
     return result;
   }

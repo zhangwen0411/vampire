@@ -112,30 +112,6 @@ public:
   Literal*const& operator[] (int n) const
   { return _literals[n]; }
 
-  void makeFunctionDefinition(Literal* lit, bool reversed) {
-    if (!_functionDefLitOrientationMap) {
-      _functionDefLitOrientationMap = new DHMap<Literal*,bool>();
-    }
-    auto res = _functionDefLitOrientationMap->insert(lit, reversed);
-    if (!res) {
-      _functionDefLitOrientationMap->set(lit, reversed);
-    }
-  }
-  void clearFunctionDefinitions() {
-    if (_functionDefLitOrientationMap) {
-      delete _functionDefLitOrientationMap;
-      _functionDefLitOrientationMap = nullptr;
-    }
-  }
-  bool isFunctionDefinition(Literal* lit) const {
-    if (!containsFunctionDefinition()) { return false; }
-    return _functionDefLitOrientationMap->find(lit);
-  }
-  bool isReversedFunctionDefinition(Literal* lit) const {
-    if (!containsFunctionDefinition()) { return false; }
-    return _functionDefLitOrientationMap->find(lit) && _functionDefLitOrientationMap->get(lit);
-  }
-
   /** Return the length (number of literals) */
   unsigned length() const { return _length; }
   /** Alternative name for length to conform with other containers */
@@ -197,11 +173,6 @@ public:
     return _weightForClauseSelection;
   }
   unsigned computeWeightForClauseSelection(const Shell::Options& opt) const;
-
-  bool containsFunctionDefinition() const
-  {
-    return _functionDefLitOrientationMap != nullptr && !_functionDefLitOrientationMap->isEmpty();
-  }
 
   /*
    * single source of truth for computation of weightForClauseSelection
@@ -430,7 +401,6 @@ protected:
 
 //#endif
 
-  DHMap<Literal*,bool>* _functionDefLitOrientationMap;
   /** Array of literals of this unit */
   Literal* _literals[1];
 }; // class Clause

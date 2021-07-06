@@ -444,10 +444,6 @@ void CodeTreeSubsumptionIndex::handleClause(Clause* cl, bool adding)
 {
   CALL("CodeTreeSubsumptionIndex::handleClause");
 
-  if (cl->containsFunctionDefinition()) {
-    return;
-  }
-
   TimeCounter tc(TC_FORWARD_SUBSUMPTION_INDEX_MAINTENANCE);
 
   if(adding) {

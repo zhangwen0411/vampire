@@ -51,6 +51,82 @@ TermList TermListReplacement::transformSubterm(TermList trm)
   return trm;
 }
 
+void FnDefHandler::handleClause(Clause* c, unsigned i, bool reversed)
+{
+  CALL("FnDefHandler::handleClause");
+
+  auto lit = (*c)[i];
+  auto trueFun = lit->isEquality();
+  TermList header;
+  vvector<TermList> recursiveCalls;
+  unsigned fn;
+
+  if (trueFun) {
+    ASS(lit->isPositive());
+    header = *lit->nthArgument(reversed ? 1 : 0);
+    TermList body = *lit->nthArgument(reversed ? 0 : 1);
+    ASS(header.isTerm());
+    ASS(header.containsAllVariablesOf(body));
+
+    static const bool fnrw = env.options->functionDefinitionRewriting();
+    if (fnrw) {
+      _is->insert(header, lit, c);
+    }
+
+    fn = header.term()->functor();
+    InductionPreprocessor::processCase(fn, body, recursiveCalls);
+  } else {
+    // look for other literals with the same top-level functor
+    fn = lit->functor();
+    header = TermList(lit);
+    for(unsigned j = 0; j < c->length(); j++) {
+      if (i != j) {
+        Literal* curr = (*c)[i];
+        if (!curr->isEquality() && fn == curr->functor()) {
+          recursiveCalls.push_back(TermList(curr));
+        }
+      }
+    }
+  }
+  auto p = make_pair(fn, trueFun);
+  auto templIt = _templates.find(p);
+  if (templIt == _templates.end()) {
+    templIt = _templates.insert(make_pair(p, InductionTemplate())).first;
+  }
+
+  templIt->second.addBranch(std::move(recursiveCalls), std::move(header));
+}
+
+void FnDefHandler::finalize() {
+  for (auto& kv : _templates) {
+    auto& templ = kv.second;
+    if (!templ.checkWellFoundedness()) {
+      env.beginOutput();
+      env.out() << "% Warning: " << templ << " is not well founded" << endl;
+      env.endOutput();
+      continue;
+    }
+    if (!templ.checkUsefulness()) {
+      continue;
+    }
+    vvector<vvector<TermList>> missingCases;
+    if (!templ.checkWellDefinedness(missingCases) && !missingCases.empty()) {
+      templ.addMissingCases(missingCases);
+    }
+
+    if(env.options->showInduction()){
+      env.beginOutput();
+      if (kv.first.second) {
+        env.out() << "[Induction] function: " << env.signature->getFunction(kv.first.first)->name() << endl;
+      } else {
+        env.out() << "[Induction] predicate: " << env.signature->getPredicate(kv.first.first)->name() << endl;
+      }
+      env.out() << ", with induction template: " << templ << endl;
+      env.endOutput();
+    }
+  }
+}
+
 ostream& operator<<(ostream& out, const InductionTemplate::Branch& branch)
 {
   if (!branch._recursiveCalls.empty()) {
@@ -249,7 +325,7 @@ void InductionPreprocessor::preprocessProblem(Problem& prb)
   CALL("InductionPreprocessor::preprocessProblem");
 
   FunctionDefinitionDiscovery d;
-  vmap<pair<unsigned, bool>, InductionTemplate> templates;
+
   UnitList::Iterator it(prb.units());
   while (it.hasNext()) {
     auto unit = it.next();
@@ -259,99 +335,11 @@ void InductionPreprocessor::preprocessProblem(Problem& prb)
 
     auto clause = unit->asClause();
     unsigned length = clause->length();
-    if (!clause->containsFunctionDefinition()) {
-      if (env.options->functionDefinitionDiscovery()) {
-        d.findPossibleDefinitions(clause);
-      }
-      continue;
-    }
-    // first we find the only function
-    // definition literal in the clause
-    Literal* fndef = nullptr;
-    for(unsigned i = 0; i < length; i++) {
-      Literal* curr = (*clause)[i];
-      if (clause->isFunctionDefinition(curr)) {
-        ASS(!fndef);
-        fndef = curr;
-      }
-    }
-
-    if (fndef->isEquality()) {
-      // if it is an equality the task is
-      // to identify the lhs and collect any
-      // recursive calls from the rhs
-      auto rev = clause->isReversedFunctionDefinition(fndef);
-      auto lhs = *fndef->nthArgument(rev ? 1 : 0);
-      auto rhs = *fndef->nthArgument(rev ? 0 : 1);
-      ASS(lhs.isTerm());
-
-      auto fn = lhs.term()->functor();
-      auto p = make_pair(fn, false);
-      auto templIt = templates.find(p);
-      if (templIt == templates.end()) {
-        templIt = templates.insert(make_pair(p, InductionTemplate())).first;
-      }
-
-      vvector<TermList> recursiveCalls;
-      processCase(fn, rhs, recursiveCalls);
-      static const bool fnrw = env.options->functionDefinitionRewriting();
-      if (!fnrw) {
-        clause->clearFunctionDefinitions();
-      }
-      templIt->second.addBranch(std::move(recursiveCalls), std::move(lhs));
-    } else {
-      // otherwise we go once again through
-      // the clause and look for other literals
-      // with the same top-level functor
-      auto functor = fndef->functor();
-      auto p = make_pair(functor, true);
-      auto templIt = templates.find(p);
-      if (templIt == templates.end()) {
-        templIt = templates.insert(make_pair(p, InductionTemplate())).first;
-      }
-
-      vvector<TermList> recursiveCalls;
-      for(unsigned i = 0; i < length; i++) {
-        Literal* curr = (*clause)[i];
-        if (curr != fndef) {
-          if (!curr->isEquality() && functor == curr->functor()) {
-            recursiveCalls.push_back(TermList(curr));
-          }
-        }
-      }
-      // we unmake it, in saturation we do not process
-      // predicate definitions differently (yet)
-      clause->clearFunctionDefinitions();
-      templIt->second.addBranch(std::move(recursiveCalls), std::move(TermList(fndef)));
-    }
-  }
-  for (const auto& kv : templates) {
-    auto templ = kv.second;
-    if (!templ.checkWellFoundedness()) {
-      env.beginOutput();
-      env.out() << "% Warning: " << templ << " is not well founded" << endl;
-      env.endOutput();
-      continue;
-    }
-    if (!templ.checkUsefulness()) {
-      continue;
-    }
-    vvector<vvector<TermList>> missingCases;
-    if (!templ.checkWellDefinedness(missingCases) && !missingCases.empty()) {
-      templ.addMissingCases(missingCases);
-    }
-
-    if(env.options->showInduction()){
-      env.beginOutput();
-      if (kv.first.second) {
-        env.out() << "[Induction] predicate: " << env.signature->getPredicate(kv.first.first)->name() << endl;
-      } else {
-        env.out() << "[Induction] function: " << env.signature->getFunction(kv.first.first)->name() << endl;
-      }
-      env.out() << ", with induction template: " << templ << endl;
-      env.endOutput();
-    }
-    env.signature->addInductionTemplate(kv.first.first, kv.first.second, std::move(templ));
+    // if (!clause->containsFunctionDefinition()) {
+    //   if (env.options->functionDefinitionDiscovery()) {
+    //     d.findPossibleDefinitions(clause);
+    //   }
+    // }
   }
   d.addBestConfiguration();
 }

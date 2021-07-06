@@ -393,7 +393,7 @@ TermIterator EqHelper::getSubVarSupLHSIterator(Literal* lit, const Ordering& ord
  *
  * If the literal @b lit is not a positive equality, empty iterator is returned.
  */
-TermIterator EqHelper::getDemodulationLHSIterator(Literal* lit, bool forward, const Ordering& ord, const Options& opt, bool fndef, bool reversed)
+TermIterator EqHelper::getDemodulationLHSIterator(Literal* lit, bool forward, const Ordering& ord, const Options& opt)
 {
   CALL("EqHelper::getDemodulationLHSIterator");
 
@@ -407,7 +407,7 @@ TermIterator EqHelper::getDemodulationLHSIterator(Literal* lit, bool forward, co
     {
     case Ordering::INCOMPARABLE:
       if ( forward ? (opt.forwardDemodulation() == Options::Demodulation::PREORDERED)
-		  : (opt.backwardDemodulation() == Options::Demodulation::PREORDERED) || fndef ) {
+		  : (opt.backwardDemodulation() == Options::Demodulation::PREORDERED)) {
         return TermIterator::getEmpty();
       }
       if (t0.containsAllVariablesOf(t1)) {
@@ -424,17 +424,11 @@ TermIterator EqHelper::getDemodulationLHSIterator(Literal* lit, bool forward, co
     case Ordering::GREATER:
     case Ordering::GREATER_EQ:
       ASS(t0.containsAllVariablesOf(t1));
-      if (!fndef || !reversed) {
-        return pvi( getSingletonIterator(t0) );
-      }
-      return TermIterator::getEmpty();
+      return pvi( getSingletonIterator(t0) );
     case Ordering::LESS:
     case Ordering::LESS_EQ:
       ASS(t1.containsAllVariablesOf(t0));
-      if (!fndef || reversed) {
-        return pvi( getSingletonIterator(t1) );
-      }
-      return TermIterator::getEmpty();
+      return pvi( getSingletonIterator(t1) );
     //there should be no equality literals of equal terms
     case Ordering::EQUAL:
       ASSERTION_VIOLATION;
@@ -453,16 +447,6 @@ TermIterator EqHelper::getEqualityArgumentIterator(Literal* lit)
   return pvi( getConcatenatedIterator(
 	  getSingletonIterator(*lit->nthArgument(0)),
 	  getSingletonIterator(*lit->nthArgument(1))) );
-}
-
-TermIterator EqHelper::getFnDefLHSIterator(Literal* lit, bool reversed)
-{
-  ASS(lit->isEquality() && lit->isPositive());
-
-  TermList header = *lit->nthArgument(reversed ? 1 : 0);
-  ASS(header.containsAllVariablesOf(*lit->nthArgument(reversed ? 0 : 1)));
-
-  return pvi(getSingletonIterator(header));
 }
 
 }

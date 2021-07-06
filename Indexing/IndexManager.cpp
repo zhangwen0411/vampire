@@ -294,12 +294,7 @@ Index* IndexManager::create(IndexType t)
     res = new InductionTermIndex(tis);
     isGenerating = true;
     break;
-  
-  case FNDEF_LHS_SUBST_TREE:
-    tis=new TermSubstitutionTree(useConstraints);
-    res=new FnDefLHSIndex(tis);
-    isGenerating = true;
-    break;
+
   case IH_LHS_SUBST_TREE:
     tis=new CodeTreeTIS();
     res=new IHLHSIndex(tis, _alg->getOrdering(), _alg->getOptions());

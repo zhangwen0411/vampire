@@ -76,8 +76,8 @@ vvector<TermList> getInductionTerms(TermList t)
 
   // If function with recursive definition,
   // recurse in its active arguments
-  if (env.signature->hasInductionTemplate(f, false /*pred*/)) {
-    auto& templ = env.signature->getInductionTemplate(f, false /*pred*/);
+  if (env.signature->getFnDefHandler()->hasInductionTemplate(f, true /*trueFun*/)) {
+    auto& templ = env.signature->getFnDefHandler()->getInductionTemplate(f, true /*trueFun*/);
     const auto& indVars = templ.inductionPositions();
 
     Term::Iterator argIt(t.term());
@@ -456,11 +456,11 @@ void RecursionInductionSchemeGenerator::process(TermList curr, bool active,
   }
 
   unsigned f = t->functor();
-  bool isPred = t->isLiteral();
+  bool trueFun = !t->isLiteral();
 
   // If function with recursive definition, create a scheme
-  if (env.signature->hasInductionTemplate(f, isPred)) {
-    auto& templ = env.signature->getInductionTemplate(f, isPred);
+  if (env.signature->getFnDefHandler()->hasInductionTemplate(f, trueFun)) {
+    auto& templ = env.signature->getFnDefHandler()->getInductionTemplate(f, trueFun);
     const auto& indPos = templ.inductionPositions();
 
     for (int i = t->arity()-1; i >= 0; i--) {

@@ -16,44 +16,35 @@
 #define __FnDefRewriting__
 
 #include "Forwards.hpp"
-#include "Indexing/TermIndex.hpp"
+#include "Shell/InductionPreprocessor.hpp"
 
 #include "InferenceEngine.hpp"
 
 namespace Inferences {
 
 using namespace Kernel;
-using namespace Indexing;
-using namespace Saturation;
+using namespace Shell;
 
 class FnDefRewriting
-    : public GeneratingInferenceEngine {
+  : public GeneratingInferenceEngine
+  , public ForwardSimplificationEngine
+  {
 public:
   CLASS_NAME(FnDefRewriting);
   USE_ALLOCATOR(FnDefRewriting);
 
-  void attach(SaturationAlgorithm *salg);
-  void detach();
-
-  bool canGenerateFromClause(Clause* cl) override {
-    return true;
-  }
   ClauseIterator generateClauses(Clause *premise) override;
+  bool perform(Clause* cl, Clause*& replacement, ClauseIterator& premises) override;
 
 private:
   static Clause *perform(
       Clause *rwClause, Literal *rwLiteral, TermList rwTerm,
       Clause *eqClause, Literal *eqLiteral, TermList eqLHS,
-      ResultSubstitutionSP subst, bool eqIsResult);
+      ResultSubstitutionSP subst, bool eqIsResult, bool& isEqTautology);
 
   struct ForwardResultFn;
   struct RewriteableSubtermsFn;
-  struct InstancesFn;
   struct GeneralizationsFn;
-  struct BackwardResultFn;
-
-  DemodulationSubtermIndex *_subtermIndex;
-  FnDefLHSIndex *_lhsIndex;
 };
 
 }; // namespace Inferences

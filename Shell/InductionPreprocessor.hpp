@@ -16,12 +16,14 @@
 #define __InductionPreprocessor__
 
 #include "Forwards.hpp"
+#include "Indexing/TermSubstitutionTree.hpp"
 #include "Kernel/Term.hpp"
 #include "Kernel/TermTransformer.hpp"
 #include "Lib/STL.hpp"
 
 namespace Shell {
 
+using namespace Indexing;
 using namespace Kernel;
 using namespace Lib;
 
@@ -81,6 +83,35 @@ private:
 
 ostream& operator<<(ostream& out, const InductionTemplate::Branch& branch);
 ostream& operator<<(ostream& out, const InductionTemplate& templ);
+
+class FnDefHandler
+{
+public:
+  CLASS_NAME(FnDefHandler);
+  USE_ALLOCATOR(FnDefHandler);
+
+  FnDefHandler()
+    : _is(new TermSubstitutionTree()) {}
+
+  void handleClause(Clause* c, unsigned i, bool reversed);
+  void finalize();
+
+  TermQueryResultIterator getGeneralizations(TermList t) {
+    return _is->getGeneralizations(t, true);
+  }
+
+  bool hasInductionTemplate(unsigned fn, bool trueFun) {
+    return _templates.count(make_pair(fn, trueFun));
+  }
+
+  const InductionTemplate& getInductionTemplate(unsigned fn, bool trueFun) {
+    return _templates.at(make_pair(fn, trueFun));
+  }
+
+private:
+  unique_ptr<TermIndexingStructure> _is;
+  vmap<pair<unsigned, bool>, InductionTemplate> _templates;
+};
 
 /**
  * This class generates the induction templates based on

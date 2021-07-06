@@ -169,10 +169,7 @@ struct GeneratingFunctor
   GeneratingFunctor(Clause* cl) : cl(cl) {}
   ClauseIterator operator() (GeneratingInferenceEngine* gie)
   {
-    if (gie->canGenerateFromClause(cl)) {
-      return gie->generateClauses(cl);
-    }
-    return ClauseIterator::getEmpty();
+    return gie->generateClauses(cl);
   }
   Clause* cl;
 };

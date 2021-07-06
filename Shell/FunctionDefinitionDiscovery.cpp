@@ -81,9 +81,9 @@ void FunctionDefinitionDiscovery::addBestConfiguration()
   unsigned i = 0;
   for (auto& fndefs : foundFunctionDefinitions) {
     for (auto& kv : fndefs) {
-      if (env.signature->hasInductionTemplate(kv.first, false)) {
-        continue;
-      }
+      // if (env.signature->hasInductionTemplate(kv.first, false)) {
+      //   continue;
+      // }
       if (!kv.second.first.checkWellFoundedness())
       {
         nonWellFounded[i].insert(kv.first);
@@ -132,23 +132,23 @@ void FunctionDefinitionDiscovery::addBestConfiguration()
         env.endOutput();
       }
       if (!nonWellFounded[best_i].count(kv.first)) {
-        env.signature->addInductionTemplate(kv.first, false, std::move(kv.second.first));
+        // env.signature->addInductionTemplate(kv.first, false, std::move(kv.second.first));
       } else {
         env.beginOutput();
         env.out() << "% Warning: non-well-founded template is discarded: " << kv.second.first << endl;
         env.endOutput();
       }
       if (env.options->functionDefinitionRewriting()) {
-        for (auto& t : kv.second.second) {
-          get<1>(t)->makeFunctionDefinition(get<0>(t), get<2>(t));
-        }
+        // for (auto& t : kv.second.second) {
+        //   get<1>(t)->makeFunctionDefinition(get<0>(t), get<2>(t));
+        // }
       }
     }
   }
   for (auto& kv : foundPredicateDefinitions) {
-    if (env.signature->hasInductionTemplate(kv.first, true)) {
-      continue;
-    }
+    // if (env.signature->hasInductionTemplate(kv.first, true)) {
+    //   continue;
+    // }
     if (kv.second.checkUsefulness()) {
       vvector<vvector<TermList>> missingCases;
       if (!kv.second.checkWellDefinedness(missingCases)
@@ -164,7 +164,7 @@ void FunctionDefinitionDiscovery::addBestConfiguration()
                     << ", with induction template: " << kv.second << endl;
           env.endOutput();
         }
-        env.signature->addInductionTemplate(kv.first, true, std::move(kv.second));
+        // env.signature->addInductionTemplate(kv.first, true, std::move(kv.second));
       }
     }
   }
@@ -173,10 +173,6 @@ void FunctionDefinitionDiscovery::addBestConfiguration()
 void FunctionDefinitionDiscovery::findPossibleDefinitions(Clause* cl)
 {
   CALL("FunctionDefinitionDiscovery::findPossibleRecursiveDefinitions");
-
-  if (cl->containsFunctionDefinition()) {
-    return;
-  }
 
   for(unsigned i = 0; i < cl->length(); i++) {
     Literal* lit = (*cl)[i];

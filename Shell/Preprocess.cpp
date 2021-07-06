@@ -690,6 +690,7 @@ void Preprocess::newCnf(Problem& prb)
     prb.invalidateProperty();
   }
   prb.reportFormulasEliminated();
+  env.signature->getFnDefHandler()->finalize();
 } 
 
 /**
