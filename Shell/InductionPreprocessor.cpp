@@ -51,11 +51,11 @@ TermList TermListReplacement::transformSubterm(TermList trm)
   return trm;
 }
 
-void FnDefHandler::handleClause(Clause* c, unsigned i, bool reversed)
+void FnDefHandler::handleClause(Clause* c, unsigned fi, bool reversed)
 {
   CALL("FnDefHandler::handleClause");
 
-  auto lit = (*c)[i];
+  auto lit = (*c)[fi];
   auto trueFun = lit->isEquality();
   TermList header;
   vvector<TermList> recursiveCalls;
@@ -79,8 +79,8 @@ void FnDefHandler::handleClause(Clause* c, unsigned i, bool reversed)
     // look for other literals with the same top-level functor
     fn = lit->functor();
     header = TermList(lit);
-    for(unsigned j = 0; j < c->length(); j++) {
-      if (i != j) {
+    for(unsigned i = 0; i < c->length(); i++) {
+      if (fi != i) {
         Literal* curr = (*c)[i];
         if (!curr->isEquality() && fn == curr->functor()) {
           recursiveCalls.push_back(TermList(curr));
