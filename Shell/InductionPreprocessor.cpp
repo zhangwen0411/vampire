@@ -98,32 +98,34 @@ void FnDefHandler::handleClause(Clause* c, unsigned fi, bool reversed)
 }
 
 void FnDefHandler::finalize() {
-  for (auto& kv : _templates) {
-    auto& templ = kv.second;
-    if (!templ.checkWellFoundedness()) {
+  for (auto it = _templates.begin(); it != _templates.end();) {
+    if (!it->second.checkWellFoundedness()) {
       env.beginOutput();
-      env.out() << "% Warning: " << templ << " is not well founded" << endl;
+      env.out() << "% Warning: " << it->second << " is not well founded" << endl;
       env.endOutput();
+      it = _templates.erase(it);
       continue;
     }
-    if (!templ.checkUsefulness()) {
+    if (!it->second.checkUsefulness()) {
+      it = _templates.erase(it);
       continue;
     }
     vvector<vvector<TermList>> missingCases;
-    if (!templ.checkWellDefinedness(missingCases) && !missingCases.empty()) {
-      templ.addMissingCases(missingCases);
+    if (!it->second.checkWellDefinedness(missingCases) && !missingCases.empty()) {
+      it->second.addMissingCases(missingCases);
     }
 
     if(env.options->showInduction()){
       env.beginOutput();
-      if (kv.first.second) {
-        env.out() << "[Induction] function: " << env.signature->getFunction(kv.first.first)->name() << endl;
+      if (it->first.second) {
+        env.out() << "[Induction] function: " << env.signature->getFunction(it->first.first)->name() << endl;
       } else {
-        env.out() << "[Induction] predicate: " << env.signature->getPredicate(kv.first.first)->name() << endl;
+        env.out() << "[Induction] predicate: " << env.signature->getPredicate(it->first.first)->name() << endl;
       }
-      env.out() << ", with induction template: " << templ << endl;
+      env.out() << ", with induction template: " << it->second << endl;
       env.endOutput();
     }
+    it++;
   }
 }
 
@@ -183,15 +185,25 @@ void InductionTemplate::addMissingCases(const vvector<vvector<TermList>>& missin
 
 bool InductionTemplate::Branch::contains(InductionTemplate::Branch other)
 {
-  if (!MatchingUtils::haveVariantArgs(_header.term(), other._header.term()))
-  {
+  RobSubstitution subst;
+  if (!subst.unify(_header, 0, other._header, 1)) {
     return false;
   }
+
   for (auto recCall2 : other._recursiveCalls) {
     bool found = false;
     for (auto recCall1 : _recursiveCalls) {
-      if (MatchingUtils::haveVariantArgs(recCall1.term(), recCall2.term()))
-      {
+      TermList r1, r2;
+      if (_header.term()->isLiteral()) {
+        auto l1 = subst.apply(static_cast<Literal*>(recCall1.term()), 0);
+        auto l2 = subst.apply(static_cast<Literal*>(recCall2.term()), 1);
+        r1 = TermList(l1);
+        r2 = TermList(l1->polarity() != l2->polarity() ? Literal::complementaryLiteral(l2) : l2);
+      } else {
+        r1 = subst.apply(recCall1, 0);
+        r2 = subst.apply(recCall2, 1);
+      }
+      if (r1 == r2) {
         found = true;
         break;
       }
@@ -487,7 +499,7 @@ bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vv
         argTuples.begin(), argTuples.end());
     }
   }
-  return !overdefined && missingCases.empty();
+  return /* !overdefined && */ missingCases.empty();
 }
 
 } // Shell
