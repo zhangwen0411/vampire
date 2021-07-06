@@ -30,8 +30,6 @@
 #include "Kernel/Inference.hpp"
 #include "Lib/Coproduct.hpp"
 
-#include "Kernel/Clause.hpp"
-
 namespace Inferences
 {
 
@@ -102,6 +100,7 @@ class SimplifyingGeneratingInference
 : public InferenceEngine
 {
 public:
+
   /** result of applying the inference */
   struct ClauseGenerationResult {
     /** the generated clauses */

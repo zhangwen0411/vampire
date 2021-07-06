@@ -168,9 +168,7 @@ struct GeneratingFunctor
 
   GeneratingFunctor(Clause* cl) : cl(cl) {}
   ClauseIterator operator() (GeneratingInferenceEngine* gie)
-  {
-    return gie->generateClauses(cl);
-  }
+  { return gie->generateClauses(cl); }
   Clause* cl;
 };
 CompositeGIE::~CompositeGIE()

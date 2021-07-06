@@ -27,7 +27,6 @@
 #include "Lib/Metaiterators.hpp"
 #include "Lib/Reflection.hpp"
 #include "Lib/Stack.hpp"
-#include "Lib/STL.hpp"
 
 #include "Unit.hpp"
 #include "Kernel/Inference.hpp"

@@ -18,7 +18,6 @@
 #include "Lib/TimeCounter.hpp"
 #include "Lib/VirtualIterator.hpp"
 
-#include "Kernel/Clause.hpp"
 #include "Kernel/Renaming.hpp"
 #include "Kernel/SubstHelper.hpp"
 #include "Kernel/Term.hpp"
@@ -443,7 +442,7 @@ private:
 void CodeTreeSubsumptionIndex::handleClause(Clause* cl, bool adding)
 {
   CALL("CodeTreeSubsumptionIndex::handleClause");
-
+  
   TimeCounter tc(TC_FORWARD_SUBSUMPTION_INDEX_MAINTENANCE);
 
   if(adding) {

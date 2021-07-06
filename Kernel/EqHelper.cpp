@@ -407,7 +407,7 @@ TermIterator EqHelper::getDemodulationLHSIterator(Literal* lit, bool forward, co
     {
     case Ordering::INCOMPARABLE:
       if ( forward ? (opt.forwardDemodulation() == Options::Demodulation::PREORDERED)
-		  : (opt.backwardDemodulation() == Options::Demodulation::PREORDERED)) {
+		  : (opt.backwardDemodulation() == Options::Demodulation::PREORDERED) ) {
         return TermIterator::getEmpty();
       }
       if (t0.containsAllVariablesOf(t1)) {
@@ -448,5 +448,6 @@ TermIterator EqHelper::getEqualityArgumentIterator(Literal* lit)
 	  getSingletonIterator(*lit->nthArgument(0)),
 	  getSingletonIterator(*lit->nthArgument(1))) );
 }
+
 
 }

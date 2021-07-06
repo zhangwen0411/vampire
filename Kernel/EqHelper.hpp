@@ -23,7 +23,6 @@
 #include "Lib/PairUtils.hpp"
 #include "Lib/DHSet.hpp"
 
-#include "Clause.hpp"
 #include "Term.hpp"
 
 namespace Kernel {

@@ -1067,6 +1067,7 @@ void SaturationAlgorithm::backwardSimplify(Clause* cl)
 {
   CALL("SaturationAlgorithm::backwardSimplify");
 
+
   BwSimplList::Iterator bsit(_bwSimplifiers);
   while (bsit.hasNext()) {
     BackwardSimplificationEngine* bse=bsit.next();
@@ -1198,7 +1199,7 @@ void SaturationAlgorithm::activate(Clause* cl)
   env.statistics->activeClauses++;
   _active->add(cl);
 
-
+    
     auto generated = _generator->generateSimplify(cl);
 
     ClauseIterator toAdd = generated.clauses;

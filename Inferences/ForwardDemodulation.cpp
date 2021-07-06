@@ -208,6 +208,7 @@ bool ForwardDemodulationImpl<combinatorySupSupport>::perform(Clause* cl, Clause*
 
 
         (*res)[0]=resLit;
+
         unsigned next=1;
         for(unsigned i=0;i<cLen;i++) {
           Literal* curr=(*cl)[i];
