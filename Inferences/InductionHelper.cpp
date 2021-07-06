@@ -212,6 +212,9 @@ bool InductionHelper::isInductionLiteral(Literal* l) {
 
 bool InductionHelper::isInductionLiteral(Literal* l, Clause* cl) {
   CALL("InductionHelper::isInductionLiteral");
+  if (!l->ground()) {
+    return false;
+  }
   auto info = cl->inference().inductionInfo();
   if (info) {
     auto it = info->iterator();
