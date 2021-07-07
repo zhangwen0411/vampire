@@ -51,6 +51,7 @@ struct InductionTemplate {
   bool checkWellFoundedness();
   bool checkWellDefinedness(vvector<vvector<TermList>>& missingCases);
   void addMissingCases(const vvector<vvector<TermList>>& missingCases);
+  void sortBranches();
 
   /**
    * Stores the template for a recursive case

@@ -114,6 +114,7 @@ void FnDefHandler::finalize() {
     if (!it->second.checkWellDefinedness(missingCases) && !missingCases.empty()) {
       it->second.addMissingCases(missingCases);
     }
+    it->second.sortBranches();
 
     if(env.options->showInduction()){
       env.beginOutput();
@@ -181,6 +182,13 @@ void InductionTemplate::addMissingCases(const vvector<vvector<TermList>>& missin
   }
   env.out() << "to template " << *this << endl;
   env.endOutput();
+}
+
+void InductionTemplate::sortBranches()
+{
+  sort(_branches.begin(), _branches.end(), [](const Branch& b1, const Branch& b2) {
+    return b1._recursiveCalls.size() < b2._recursiveCalls.size();
+  });
 }
 
 bool InductionTemplate::Branch::contains(InductionTemplate::Branch other)

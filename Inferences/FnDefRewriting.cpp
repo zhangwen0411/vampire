@@ -125,7 +125,7 @@ bool FnDefRewriting::perform(Clause* cl, Clause*& replacement, ClauseIterator& p
   unsigned cLen = cl->length();
   for (unsigned li = 0; li < cLen; li++) {
     Literal* lit = (*cl)[li];
-    NonVariableIterator it(lit, true);
+    NonVariableIterator it(lit);
     while (it.hasNext()) {
       TermList trm = it.next();
       if (!attempted.insert(trm)) {
