@@ -85,7 +85,7 @@ struct FnDefRewriting::ForwardResultFn {
     TermQueryResult &qr = arg.second;
     bool temp;
     return FnDefRewriting::perform(_cl, arg.first.first, arg.first.second, qr.clause,
-                                   qr.literal, qr.term, qr.substitution, true, temp);
+                                   qr.literal, qr.term, qr.substitution, true, temp, InferenceRule::FNDEF_REWRITING);
   }
 
 private:
@@ -125,7 +125,7 @@ bool FnDefRewriting::perform(Clause* cl, Clause*& replacement, ClauseIterator& p
   unsigned cLen = cl->length();
   for (unsigned li = 0; li < cLen; li++) {
     Literal* lit = (*cl)[li];
-    NonVariableIterator it(lit);
+    NonVariableIterator it(lit, true);
     while (it.hasNext()) {
       TermList trm = it.next();
       if (!attempted.insert(trm)) {
@@ -144,14 +144,14 @@ bool FnDefRewriting::perform(Clause* cl, Clause*& replacement, ClauseIterator& p
           continue;
         }
         bool isEqTautology = false;
-        auto res = FnDefRewriting::perform(cl, lit, trm, qr.clause, qr.literal, qr.term, qr.substitution, true, isEqTautology);
+        auto res = FnDefRewriting::perform(cl, lit, trm, qr.clause, qr.literal, qr.term, qr.substitution, true, isEqTautology, InferenceRule::FNDEF_DEMODULATION);
         if (!res && !isEqTautology) {
           continue;
         }
         if (!isEqTautology) {
           replacement = res;
         }
-        premises = pvi( getSingletonIterator(qr.clause));
+        premises = pvi(getSingletonIterator(qr.clause));
         return true;
       }
     }
@@ -163,7 +163,7 @@ bool FnDefRewriting::perform(Clause* cl, Clause*& replacement, ClauseIterator& p
 Clause *FnDefRewriting::perform(
     Clause *rwClause, Literal *rwLit, TermList rwTerm,
     Clause *eqClause, Literal *eqLit, TermList eqLHS,
-    ResultSubstitutionSP subst, bool eqIsResult, bool& isEqTautology)
+    ResultSubstitutionSP subst, bool eqIsResult, bool& isEqTautology, InferenceRule rule)
 {
   CALL("FnDefRewriting::perform");
 
@@ -204,7 +204,7 @@ Clause *FnDefRewriting::perform(
   unsigned eqLength = eqClause->length();
   unsigned newLength = rwLength + eqLength - 1;
 
-  Inference inf(GeneratingInference2(InferenceRule::FNDEF_REWRITING, rwClause, eqClause));
+  Inference inf(GeneratingInference2(rule, rwClause, eqClause));
   Clause *res = new (newLength) Clause(newLength, inf);
 
   static bool doSimS = env.options->simulatenousSuperposition();

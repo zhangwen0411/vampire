@@ -265,6 +265,8 @@ enum class InferenceRule : unsigned char {
 
   BOOL_SIMP,
 
+  FNDEF_DEMODULATION,
+
   INTERNAL_SIMPLIFYING_INFERNCE_LAST,
 
 

@@ -763,6 +763,8 @@ vstring Kernel::ruleName(InferenceRule rule)
     return "superposition";
   case InferenceRule::FNDEF_REWRITING:
     return "fn def rewriting";
+  case InferenceRule::FNDEF_DEMODULATION:
+    return "fn def demodulation";
   case InferenceRule::IH_REWRITING:
     return "induction hypothesis rewriting";
   case InferenceRule::CONSTRAINED_SUPERPOSITION:

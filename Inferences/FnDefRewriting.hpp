@@ -40,7 +40,8 @@ private:
   static Clause *perform(
       Clause *rwClause, Literal *rwLiteral, TermList rwTerm,
       Clause *eqClause, Literal *eqLiteral, TermList eqLHS,
-      ResultSubstitutionSP subst, bool eqIsResult, bool& isEqTautology);
+      ResultSubstitutionSP subst,
+      bool eqIsResult, bool& isEqTautology, InferenceRule rule);
 
   struct ForwardResultFn;
   struct RewriteableSubtermsFn;
