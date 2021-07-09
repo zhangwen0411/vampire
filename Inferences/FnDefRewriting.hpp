@@ -41,7 +41,7 @@ private:
       Clause *rwClause, Literal *rwLiteral, TermList rwTerm,
       Clause *eqClause, Literal *eqLiteral, TermList eqLHS,
       ResultSubstitutionSP subst,
-      bool eqIsResult, bool& isEqTautology, InferenceRule rule);
+      bool eqIsResult, bool& isEqTautology, const Inference& inf);
 
   struct ForwardResultFn;
   struct RewriteableSubtermsFn;

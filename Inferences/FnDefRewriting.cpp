@@ -85,7 +85,8 @@ struct FnDefRewriting::ForwardResultFn {
     TermQueryResult &qr = arg.second;
     bool temp;
     return FnDefRewriting::perform(_cl, arg.first.first, arg.first.second, qr.clause,
-                                   qr.literal, qr.term, qr.substitution, true, temp, InferenceRule::FNDEF_REWRITING);
+                                   qr.literal, qr.term, qr.substitution, true, temp,
+                                   Inference(GeneratingInference2(InferenceRule::FNDEF_REWRITING, _cl, qr.clause)));
   }
 
 private:
@@ -183,7 +184,8 @@ bool FnDefRewriting::perform(Clause* cl, Clause*& replacement, ClauseIterator& p
           }
         }
         bool isEqTautology = false;
-        auto res = FnDefRewriting::perform(cl, lit, trm, qr.clause, qr.literal, qr.term, qr.substitution, true, isEqTautology, InferenceRule::FNDEF_DEMODULATION);
+        auto res = FnDefRewriting::perform(cl, lit, trm, qr.clause, qr.literal, qr.term, qr.substitution, true,
+          isEqTautology, Inference(SimplifyingInference2(InferenceRule::FNDEF_DEMODULATION, cl, qr.clause)));
         if (!res && !isEqTautology) {
           continue;
         }
@@ -202,7 +204,7 @@ bool FnDefRewriting::perform(Clause* cl, Clause*& replacement, ClauseIterator& p
 Clause *FnDefRewriting::perform(
     Clause *rwClause, Literal *rwLit, TermList rwTerm,
     Clause *eqClause, Literal *eqLit, TermList eqLHS,
-    ResultSubstitutionSP subst, bool eqIsResult, bool& isEqTautology, InferenceRule rule)
+    ResultSubstitutionSP subst, bool eqIsResult, bool& isEqTautology, const Inference& inf)
 {
   CALL("FnDefRewriting::perform");
 
@@ -243,7 +245,6 @@ Clause *FnDefRewriting::perform(
   unsigned eqLength = eqClause->length();
   unsigned newLength = rwLength + eqLength - 1;
 
-  Inference inf(GeneratingInference2(rule, rwClause, eqClause));
   Clause *res = new (newLength) Clause(newLength, inf);
 
   static bool doSimS = env.options->simulatenousSuperposition();
