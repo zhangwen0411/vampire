@@ -32,7 +32,12 @@ using namespace Kernel;
 namespace Shell {
 
 inline bool skolem(TermList t) {
-  return !t.isVar() && env.signature->getFunction(t.term()->functor())->skolem();
+  if (t.isVar()) {
+    return false;
+  }
+  auto isLit = t.term()->isLiteral();
+  auto symb = isLit ? env.signature->getPredicate(t.term()->functor()) : env.signature->getFunction(t.term()->functor());
+  return symb->skolem();
 }
 
 inline bool containsSkolem(TermList t)
@@ -717,21 +722,21 @@ InductionScheme IntegerInductionSchemeGenerator::generateInteger(Term* term)
   scheme.addCase(std::move(empty), std::move(base));
 
   TermList one(theory->representConstant(IntegerConstantType(1)));
+  TermList x_var(0, false);
+  TermList xPlusOne(Term::create2(env.signature->getInterpretingSymbol(Theory::INT_MINUS), x_var, one));
 
   // step case increasing
-  TermList x_inc(var++, false);
   vvector<Substitution> recursiveCallsInc(1);
-  recursiveCallsInc.back().bind(0, x_inc);
+  recursiveCallsInc.back().bind(0, x_var);
   Substitution step_inc;
-  step_inc.bind(0, Term::create2(env.signature->getInterpretingSymbol(Theory::INT_PLUS), x_inc, one));
+  step_inc.bind(0, xPlusOne);
   scheme.addCase(std::move(recursiveCallsInc), std::move(step_inc));
 
   // step case decreasing
-  TermList x_dec(var++, false);
   vvector<Substitution> recursiveCallsDec(1);
-  recursiveCallsDec.back().bind(0, x_dec);
+  recursiveCallsDec.back().bind(0, xPlusOne);
   Substitution step_dec;
-  step_dec.bind(0, Term::create2(env.signature->getInterpretingSymbol(Theory::INT_MINUS), x_dec, one));
+  step_dec.bind(0, x_var);
   scheme.addCase(std::move(recursiveCallsDec), std::move(step_dec));
 
   scheme.finalize();
