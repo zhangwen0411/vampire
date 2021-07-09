@@ -133,6 +133,9 @@ bool FnDefRewriting::perform(Clause* cl, Clause*& replacement, ClauseIterator& p
         continue;
       }
 
+      bool toplevelCheck = ForwardSimplificationEngine::_salg->getOptions().demodulationRedundancyCheck() &&
+        lit->isEquality() && (trm==*lit->nthArgument(0) || trm==*lit->nthArgument(1));
+
       auto git = env.signature->getFnDefHandler()->getGeneralizations(trm);
       while (git.hasNext()) {
         TermQueryResult qr = git.next();
@@ -142,6 +145,42 @@ bool FnDefRewriting::perform(Clause* cl, Clause*& replacement, ClauseIterator& p
         auto rhs = EqHelper::getOtherEqualitySide(qr.literal, qr.term);
         if (Ordering::isGorGEorE(ordering.compare(rhs,qr.term))) {
           continue;
+        }
+        TermList rhsS;
+        if(!qr.substitution->isIdentityOnQueryWhenResultBound()) {
+          //When we apply substitution to the rhs, we get a term, that is
+          //a variant of the term we'd like to get, as new variables are
+          //produced in the substitution application.
+          TermList lhsSBadVars=qr.substitution->applyToResult(qr.term);
+          TermList rhsSBadVars=qr.substitution->applyToResult(rhs);
+          Renaming rNorm, qNorm, qDenorm;
+          rNorm.normalizeVariables(lhsSBadVars);
+          qNorm.normalizeVariables(trm);
+          qDenorm.makeInverse(qNorm);
+          ASS_EQ(trm,qDenorm.apply(rNorm.apply(lhsSBadVars)));
+          rhsS=qDenorm.apply(rNorm.apply(rhsSBadVars));
+        } else {
+          rhsS=qr.substitution->applyToBoundResult(rhs);
+        }
+        if (toplevelCheck) {
+          TermList other=EqHelper::getOtherEqualitySide(lit, trm);
+          Ordering::Result tord = ordering.compare(rhsS, other);
+          if (tord != Ordering::LESS && tord != Ordering::LESS_EQ) {
+            Literal* eqLitS = qr.substitution->applyToBoundResult(qr.literal);
+            bool isMax=true;
+            for (unsigned li2 = 0; li2 < cLen; li2++) {
+              if (li == li2) {
+                continue;
+              }
+              if (ordering.compare(eqLitS, (*cl)[li2]) == Ordering::LESS) {
+                isMax=false;
+                break;
+              }
+            }
+            if (isMax) {
+              continue;
+            }
+          }
         }
         bool isEqTautology = false;
         auto res = FnDefRewriting::perform(cl, lit, trm, qr.clause, qr.literal, qr.term, qr.substitution, true, isEqTautology, InferenceRule::FNDEF_DEMODULATION);
