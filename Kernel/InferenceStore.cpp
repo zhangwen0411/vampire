@@ -170,8 +170,9 @@ vstring getQuantifiedStr(const VarContainer& vars, vstring inner, DHMap<unsigned
     unsigned var =vit.next();
     vstring ty="";
     TermList t;
-    if(t_map.find(var,t) /*&& t!=Term::defaultSort()*/){
-      //TODO should assert that we are in tff mode here
+    if(t_map.find(var,t) && env.statistics->hasTypes){
+      //hasTypes is true if the problem that contains a sort
+      //that is not $i and not a variable
       ty=" : " + t.toString();
     }
     if(ty == " : $tType"){
@@ -1041,6 +1042,44 @@ InferenceStore::ProofPrinter* InferenceStore::createProofPrinter(ostream& out)
   }
   ASSERTION_VIOLATION;
   return 0;
+}
+
+/**
+ * Output a proof of refutation to out
+ *
+ *
+ */
+void InferenceStore::outputUnsatCore(ostream& out, Unit* refutation)
+{
+  CALL("InferenceStore::outputUnsatCore(ostream&,Unit*)");
+
+  out << "(" << endl;
+
+  Stack<Unit*> todo;
+  todo.push(refutation);
+  Set<vstring> printed;
+  while(!todo.isEmpty()){
+
+    Unit* u = todo.pop();
+
+    if(u->number() <= Unit::getLastParsingNumber()){
+      if(!u->isClause()  && u->getFormula()->hasLabel()){
+        vstring label =  u->getFormula()->getLabel();
+        if(!printed.contains(label)){
+          out << label << endl; 
+          printed.insert(label);
+        }
+      }
+    }
+    else{
+      InferenceRule rule;
+      UnitIterator parents = InferenceStore::instance()->getParents(u,rule);
+      while(parents.hasNext()){ todo.push(parents.next()); }
+    }
+
+  }
+
+  out << ")" << endl;
 }
 
 /**
