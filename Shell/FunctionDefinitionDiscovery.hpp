@@ -18,6 +18,7 @@
 #include "Forwards.hpp"
 #include "Kernel/Term.hpp"
 #include "Kernel/TermTransformer.hpp"
+#include "Kernel/Problem.hpp"
 #include "Lib/STL.hpp"
 
 #include "InductionPreprocessor.hpp"
@@ -31,12 +32,24 @@ class FunctionDefinitionDiscovery {
 public:
   FunctionDefinitionDiscovery() : foundFunctionDefinitions(1) {}
 
+  void preprocess(const Problem& prb) {
+    UnitList::Iterator it(prb.units());
+    while (it.hasNext()) {
+      auto unit = it.next();
+      if (!unit->isClause()){
+        continue;
+      }
+
+      findPossibleDefinitions(unit->asClause());
+    }
+    addBestConfiguration();
+  }
   void findPossibleDefinitions(Clause* cl);
   void addBestConfiguration();
 
 private:
-  vvector<vmap<unsigned, pair<InductionTemplate, vvector<tuple<Literal*,Clause*,bool>>>>> foundFunctionDefinitions;
-  vmap<unsigned, InductionTemplate> foundPredicateDefinitions;
+  vvector<vmap<unsigned, pair<InductionTemplate, vvector<tuple<Clause*,unsigned,bool>>>>> foundFunctionDefinitions;
+  vmap<unsigned, pair<InductionTemplate, vvector<pair<Clause*,unsigned>>>> foundPredicateDefinitions;
 };
 
 } // Shell

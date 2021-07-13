@@ -79,11 +79,12 @@ void FunctionDefinitionDiscovery::addBestConfiguration()
   vvector<vset<unsigned>> nonWellDefined(n);
   vvector<vmap<unsigned, vvector<vvector<TermList>>>> missingCases(n);
   unsigned i = 0;
+  auto fnDefHandler = env.signature->getFnDefHandler();
   for (auto& fndefs : foundFunctionDefinitions) {
     for (auto& kv : fndefs) {
-      // if (env.signature->hasInductionTemplate(kv.first, false)) {
-      //   continue;
-      // }
+      if (fnDefHandler->hasInductionTemplate(kv.first, true /* trueFun */)) {
+        continue;
+      }
       if (!kv.second.first.checkWellFoundedness())
       {
         nonWellFounded[i].insert(kv.first);
@@ -132,39 +133,38 @@ void FunctionDefinitionDiscovery::addBestConfiguration()
         env.endOutput();
       }
       if (!nonWellFounded[best_i].count(kv.first)) {
-        // env.signature->addInductionTemplate(kv.first, false, std::move(kv.second.first));
+        for (auto& t : kv.second.second) {
+          fnDefHandler->handleClause(get<0>(t), get<1>(t), get<2>(t)); 
+        }
       } else {
         env.beginOutput();
         env.out() << "% Warning: non-well-founded template is discarded: " << kv.second.first << endl;
         env.endOutput();
       }
-      if (env.options->functionDefinitionRewriting()) {
-        // for (auto& t : kv.second.second) {
-        //   get<1>(t)->makeFunctionDefinition(get<0>(t), get<2>(t));
-        // }
-      }
     }
   }
   for (auto& kv : foundPredicateDefinitions) {
-    // if (env.signature->hasInductionTemplate(kv.first, true)) {
-    //   continue;
-    // }
-    if (kv.second.checkUsefulness()) {
+    if (env.signature->getFnDefHandler()->hasInductionTemplate(kv.first, false /* trueFun */)) {
+      continue;
+    }
+    if (kv.second.first.checkUsefulness()) {
       vvector<vvector<TermList>> missingCases;
-      if (!kv.second.checkWellDefinedness(missingCases)
+      if (!kv.second.first.checkWellDefinedness(missingCases)
           && missingCases.size() > 0)
       {
-        kv.second.addMissingCases(missingCases);
+        kv.second.first.addMissingCases(missingCases);
       }
-      if (kv.second.checkWellFoundedness()) {
+      if (kv.second.first.checkWellFoundedness()) {
         if(env.options->showInduction()){
           env.beginOutput();
           env.out() << "[Induction] predicate definition has been discovered: "
                     << env.signature->predicateName(kv.first)
-                    << ", with induction template: " << kv.second << endl;
+                    << ", with induction template: " << kv.second.first << endl;
           env.endOutput();
         }
-        // env.signature->addInductionTemplate(kv.first, true, std::move(kv.second));
+        for (auto& t : kv.second.second) {
+          fnDefHandler->handleClause(t.first, t.second, false /* reversed */); 
+        }
       }
     }
   }
@@ -201,12 +201,12 @@ void FunctionDefinitionDiscovery::findPossibleDefinitions(Clause* cl)
       if (succlhs || succrhs) {
         foundFunctionDefinitions.clear();
       }
-      auto insertFn = [this, temp, lit, cl](TermList lhs, TermList rhs, InductionTemplate templ, bool reversed) {
+      auto insertFn = [this, temp, i, cl](TermList lhs, TermList rhs, InductionTemplate templ, bool reversed) {
         for (auto fndefs : temp) {
           auto it = fndefs.find(lhs.term()->functor());
           if (it == fndefs.end()) {
             it = fndefs.insert(make_pair(lhs.term()->functor(),
-              make_pair(templ, vvector<tuple<Literal*,Clause*,bool>>()))).first;
+              make_pair(templ, vvector<tuple<Clause*,unsigned,bool>>()))).first;
           } else {
             for (const auto& b : templ.branches()) {
               vvector<TermList> recursiveCalls = b._recursiveCalls;
@@ -214,7 +214,7 @@ void FunctionDefinitionDiscovery::findPossibleDefinitions(Clause* cl)
               it->second.first.addBranch(std::move(recursiveCalls), std::move(header));
             }
           }
-          it->second.second.push_back(make_tuple(lit, cl, reversed));
+          it->second.second.push_back(make_tuple(cl, i, reversed));
           foundFunctionDefinitions.push_back(fndefs);
         }
         if(env.options->showInduction()){
@@ -250,9 +250,10 @@ void FunctionDefinitionDiscovery::findPossibleDefinitions(Clause* cl)
         }
         auto it = foundPredicateDefinitions.find(pred);
         if (it == foundPredicateDefinitions.end()) {
-          it = foundPredicateDefinitions.emplace(pred, InductionTemplate()).first;
+          it = foundPredicateDefinitions.emplace(pred, make_pair(InductionTemplate(), vvector<pair<Clause*,unsigned>>())).first;
         }
-        it->second.addBranch(std::move(recCalls), TermList(lit));
+        it->second.first.addBranch(std::move(recCalls), TermList(lit));
+        it->second.second.push_back(make_pair(cl, i));
       }
     }
   }

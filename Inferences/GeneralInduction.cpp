@@ -8,8 +8,8 @@
  * and in the source directory
  */
 /**
- * @file Induction.cpp
- * Implements class Induction.
+ * @file GeneralInduction.cpp
+ * Implements class GeneralInduction.
  */
 
 #include "Debug/RuntimeStatistics.hpp"

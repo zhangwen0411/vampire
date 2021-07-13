@@ -120,7 +120,6 @@ private:
  */
 struct InductionPreprocessor {
   static void processCase(const unsigned fn, TermList body, vvector<TermList>& recursiveCalls);
-  static void preprocessProblem(Problem& prb);
   static bool checkWellFoundedness(const vvector<pair<TermList,TermList>>& relatedTerms);
   static bool checkWellDefinedness(const vvector<Term*>& cases, vvector<vvector<TermList>>& missingCases);
 };

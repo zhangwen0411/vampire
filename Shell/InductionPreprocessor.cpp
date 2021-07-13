@@ -19,8 +19,6 @@
 #include "Kernel/Unit.hpp"
 #include "Kernel/Signature.hpp"
 
-#include "FunctionDefinitionDiscovery.hpp"
-
 using namespace Kernel;
 
 namespace Shell {
@@ -338,30 +336,6 @@ void InductionPreprocessor::processCase(const unsigned fn, TermList body, vvecto
       recursiveCalls.push_back(st);
     }
   }
-}
-
-void InductionPreprocessor::preprocessProblem(Problem& prb)
-{
-  CALL("InductionPreprocessor::preprocessProblem");
-
-  FunctionDefinitionDiscovery d;
-
-  UnitList::Iterator it(prb.units());
-  while (it.hasNext()) {
-    auto unit = it.next();
-    if (!unit->isClause()){
-      continue;
-    }
-
-    auto clause = unit->asClause();
-    unsigned length = clause->length();
-    // if (!clause->containsFunctionDefinition()) {
-    //   if (env.options->functionDefinitionDiscovery()) {
-    //     d.findPossibleDefinitions(clause);
-    //   }
-    // }
-  }
-  d.addBestConfiguration();
 }
 
 bool checkWellFoundednessHelper(const vvector<pair<TermList,TermList>>& relatedTerms,

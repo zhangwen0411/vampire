@@ -33,7 +33,7 @@
 #include "Flattening.hpp"
 #include "FunctionDefinition.hpp"
 #include "GeneralSplitting.hpp"
-#include "InductionPreprocessor.hpp"
+#include "FunctionDefinitionDiscovery.hpp"
 #include "InequalitySplitting.hpp"
 #include "InterpretedNormalizer.hpp"
 #include "Naming.hpp"
@@ -366,7 +366,10 @@ void Preprocess::preprocess(Problem& prb)
     }
   }
 
-  InductionPreprocessor::preprocessProblem(prb);
+  if (_options.functionDefinitionDiscovery()) {
+    FunctionDefinitionDiscovery fdd;
+    fdd.preprocess(prb);
+  }
 
   prb.getProperty();
 
