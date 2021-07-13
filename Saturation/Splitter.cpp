@@ -16,6 +16,8 @@
 
 #include "Debug/RuntimeStatistics.hpp"
 
+#include "Inferences/InductionHelper.hpp"
+
 #include "Lib/DHSet.hpp"
 #include "Lib/Environment.hpp"
 #include "Lib/IntUnionFind.hpp"
@@ -1274,6 +1276,16 @@ Clause* Splitter::buildAndInsertComponentClause(SplitLevel name, unsigned size, 
     compCl->setAge(orig->age());
     compCl->inference().th_ancestors = orig->inference().th_ancestors;
     compCl->inference().all_ancestors = orig->inference().all_ancestors;
+    // vset<unsigned> sig;
+    // auto it = getArrayishObjectIterator(lits, size);
+    // while (it.hasNext()) {
+    //   auto lit = it.next();
+    //   auto curr = InductionHelper::collectSkolems(lit, orig);
+    //   sig.insert(curr.begin(), curr.end());
+    // }
+    // for (const auto& e : sig) {
+    //   compCl->inference().addToInductionInfo(e);
+    // }
   } else {
     compCl->setAge(AGE_NOT_FILLED);
     // We don't know anything about the derivation of the clause, so we set values which are as neutral as possible.
@@ -1297,17 +1309,6 @@ Clause* Splitter::buildAndInsertComponentClause(SplitLevel name, unsigned size, 
     _componentIdx->insert(compCl);
   }
   _compNames.insert(compCl, name);
-
-  // auto it = getArrayishObjectIterator(lits, size);
-  // while (it.hasNext()) {
-  //   auto lit = it.next();
-  //   vset<unsigned> sig;
-  //   if (orig->isInductionLiteral(lit, sig)) {
-  //     for (const auto& s : sig) {
-  //       compCl->markInductionLiteral(s, lit);
-  //     }
-  //   }
-  // }
 
   return compCl;
 }
