@@ -168,12 +168,7 @@ struct GeneratingFunctor
 
   GeneratingFunctor(Clause* cl) : cl(cl) {}
   ClauseIterator operator() (GeneratingInferenceEngine* gie)
-  {
-    if (gie->canGenerateFromClause(cl)) {
-      return gie->generateClauses(cl);
-    }
-    return ClauseIterator::getEmpty();
-  }
+  { return gie->generateClauses(cl); }
   Clause* cl;
 };
 CompositeGIE::~CompositeGIE()
@@ -535,13 +530,6 @@ Clause* TrivialInequalitiesRemovalISE::simplify(Clause* c)
 		            SimplifyingInference1(InferenceRule::TRIVIAL_INEQUALITY_REMOVAL,c));
   for (int i = newLength-1;i >= 0;i--) {
     (*d)[i] = lits[newLength-i-1];
-    vset<unsigned> sig;
-    bool hyp, rev;
-    if (c->isInductionLiteral(lits[newLength-i-1], sig, hyp, rev)) {
-      for (const auto& s : sig) {
-        d->markInductionLiteral(s, lits[newLength-i-1], hyp, rev);
-      }
-    }
   }
   env.statistics->trivialInequalities += found;
 

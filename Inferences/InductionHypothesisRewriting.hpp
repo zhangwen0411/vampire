@@ -39,8 +39,7 @@ public:
   void attach(SaturationAlgorithm* salg) override {
     GeneratingInferenceEngine::attach(salg);
     _splitter=_salg->getSplitter();
-    _induction = new GeneralInduction(InferenceRule::IH_REWRITING);
-    _induction->attach(_salg);
+    _induction = _salg->getInduction();
     _dupLitRemoval = new DuplicateLiteralRemovalISE();
     _dupLitRemoval->attach(_salg);
     _lhsIndex = static_cast<IHLHSIndex *>(
@@ -60,8 +59,6 @@ public:
     _dupLitRemoval->detach();
     delete _dupLitRemoval;
     _dupLitRemoval = nullptr;
-    _induction->detach();
-    delete _induction;
     _induction = nullptr;
     _splitter = nullptr;
     GeneratingInferenceEngine::detach();
@@ -70,7 +67,7 @@ public:
 
 private:
   ClauseIterator generateClauses(Literal* lit, Clause* premise);
-  ClauseIterator perform(unsigned sig,
+  ClauseIterator perform(const vset<unsigned>& sig,
       Clause *rwClause, Literal *rwLiteral, TermList rwSide, TermList rwTerm,
       Clause *eqClause, Literal *eqLiteral, TermList eqLHS,
       ResultSubstitutionSP subst, bool eqIsResult);

@@ -40,6 +40,7 @@ using namespace Kernel;
 using namespace Saturation;
 
 class NoGeneralizationIterator
+  : public IteratorCore<OccurrenceMap>
 {
 public:
   DECL_ELEMENT_TYPE(OccurrenceMap);
@@ -47,14 +48,14 @@ public:
   NoGeneralizationIterator(const OccurrenceMap& occ)
     : _occ(occ), _hasNext(true) {}
 
-  inline bool hasNext()
+  inline bool hasNext() override
   {
     return _hasNext;
   }
 
-  inline OWN_ELEMENT_TYPE next()
+  inline OWN_ELEMENT_TYPE next() override
   {
-    CALL("GeneralizationIterator::next()");
+    CALL("NoGeneralizationIterator::next()");
     ASS(_hasNext);
 
     auto it = _occ.begin();
@@ -82,19 +83,30 @@ private:
 };
 
 class GeneralizationIterator
+  : public IteratorCore<OccurrenceMap>
 {
 public:
   DECL_ELEMENT_TYPE(OccurrenceMap);
 
-  GeneralizationIterator(const OccurrenceMap& occ, bool heuristic)
-    : _occ(occ), _hasNext(true), _heuristic(heuristic) {}
+  GeneralizationIterator(const OccurrenceMap& occ, bool heuristic, bool hasFixOccurrences)
+    : _occ(occ), _hasNext(true), _heuristic(heuristic), _hasFixOccurrences(hasFixOccurrences)
+  {
+    if (!_hasFixOccurrences) {
+      // eliminate all 0s
+      for (auto& o : _occ) {
+        if (!o.second.num_set_bits()) {
+          ALWAYS(o.second.next());
+        }
+      }
+    }
+  }
 
-  inline bool hasNext()
+  inline bool hasNext() override
   {
     return _hasNext;
   }
 
-  inline OWN_ELEMENT_TYPE next()
+  inline OWN_ELEMENT_TYPE next() override
   {
     CALL("GeneralizationIterator::next()");
     ASS(_hasNext);
@@ -112,6 +124,12 @@ public:
         break;
       }
       it->second.reset_bits();
+      if (!_hasFixOccurrences) {
+        // eliminate all 0s as in ctor
+        if (!it->second.num_set_bits()) {
+          ALWAYS(it->second.next());
+        }
+      }
       it++;
     }
     if (it == _occ.end()) {
@@ -134,6 +152,7 @@ private:
   OccurrenceMap _occ;
   bool _hasNext;
   bool _heuristic;
+  bool _hasFixOccurrences;
 };
 
 class GeneralInduction
@@ -143,9 +162,16 @@ public:
   CLASS_NAME(GeneralInduction);
   USE_ALLOCATOR(GeneralInduction);
 
-  GeneralInduction(InferenceRule rule)
-    : _splitter(0),
+  GeneralInduction(const vvector<InductionSchemeGenerator*> gen, InferenceRule rule)
+    : _gen(gen),
+      _splitter(0),
       _rule(rule) {}
+
+  ~GeneralInduction() {
+    for (auto& gen : _gen) {
+      delete gen;
+    }
+  }
 
   ClauseIterator generateClauses(Clause* premise) override;
   void attach(SaturationAlgorithm* salg) override;
@@ -170,22 +196,24 @@ private:
   void process(InductionClauseIterator& it, Clause* premise, Literal* literal);
   void generateClauses(
     const Shell::InductionScheme& scheme,
-    const OccurrenceMap& occurrences,
-    const SLQueryResult& mainLit,
-    const vset<pair<Literal*,Clause*>>& sideLits,
+    Literal* mainLit, const SLQueryResult& mainQuery,
+    const vvector<pair<Literal*,SLQueryResult>>& sideLitQrPairs,
     ClauseStack& clauses);
-  InductionScheme::Case skolemizeCase(const InductionScheme::Case& c);
-  Literal* skolemizeLiteral(Literal* lit);
+  InductionScheme::Case skolemizeCase(
+    const InductionScheme::Case& c,
+    const vmap<Term*, unsigned>& inductionTerms,
+    vset<unsigned>& introducedSkolems);
   bool alreadyDone(Literal* mainLit, const vset<pair<Literal*,Clause*>>& sides,
     const InductionScheme& sch, pair<Literal*,vset<Literal*>>& res);
   vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> selectMainSidePairs(Literal* literal, Clause* premise);
   Literal* replaceLit(unsigned& var, const vmap<TermList,TermList>& r, const OccurrenceMap& occurrences, Literal* lit,
     const vset<pair<Literal*,Clause*>>& sideLits, const vvector<LiteralStack>& lits, vvector<LiteralStack>& newLits, bool hypothesis = false);
 
+  vvector<InductionSchemeGenerator*> _gen;
   Splitter* _splitter;
   InferenceRule _rule;
   DHMap<Literal*, vset<Literal*>> _done;
-  DemodulationSubtermIndex* _index;
+  TermIndex* _index;
 };
 
 }

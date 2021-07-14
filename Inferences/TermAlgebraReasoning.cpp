@@ -47,18 +47,7 @@ namespace Inferences {
     unsigned i = 0;
     while ((*c)[i] != a) { i++; }
     std::memcpy(res->literals(), c->literals(), length * sizeof(Literal*));
-    if (c->inductionInfo()) {
-      res->inductionInfo() = new DHMap<Literal*,tuple<vset<unsigned>,bool,bool>>(*c->inductionInfo());
-      res->inductionInfo()->remove(a);
-    }
     (*res)[i] = b;
-    vset<unsigned> sig;
-    bool hyp, rev;
-    if (c->isInductionLiteral(a, sig, hyp, rev)) {
-      for (const auto& s : sig) {
-        res->markInductionLiteral(s, b, hyp, rev ^ b->isOrientedReversed());
-      }
-    }
 
     return res;
   }
@@ -76,11 +65,6 @@ namespace Inferences {
 
     std::memcpy(res->literals(), c->literals(), i * sizeof(Literal*));
     std::memcpy(res->literals() + i, c->literals() + i + 1, (length - i - 1) * sizeof(Literal*));
-
-    if (c->inductionInfo()) {
-      res->inductionInfo() = new DHMap<Literal*,tuple<vset<unsigned>,bool,bool>>(*c->inductionInfo());
-      res->inductionInfo()->remove((*c)[i]);
-    }
 
     return res;
   }
@@ -310,19 +294,7 @@ namespace Inferences {
         unsigned i = 0;
         while ((*c)[i] != lit) { i++; }
         std::memcpy(res->literals(), c->literals(), length * sizeof(Literal*));
-        if (c->inductionInfo()) {
-          res->inductionInfo() = new DHMap<Literal*,tuple<vset<unsigned>,bool,bool>>(*c->inductionInfo());
-          res->inductionInfo()->remove(lit);
-        }
         (*res)[i] = newLit;
-        vset<unsigned> sig;
-        bool hyp, rev;
-        auto ind = c->isInductionLiteral(lit, sig, hyp, rev);
-        if (ind) {
-          for (const auto& s : sig) {
-            res->markInductionLiteral(s, newLit, hyp, rev ^ newLit->isOrientedReversed());
-          }
-        }
         
         for (unsigned i = 1; i < arity; i++) {
           newLit = Literal::createEquality(false,
@@ -330,11 +302,6 @@ namespace Inferences {
                                            *lit->nthArgument(1)->term()->nthArgument(i),
                                            type->arg(i));
           (*res)[oldLength + i - 1] = newLit;
-          if (ind && type->arg(i) == type->result()) {
-            for (const auto& s : sig) {
-              res->markInductionLiteral(s, newLit, hyp, rev ^ newLit->isOrientedReversed());
-            }
-          }
         }
         env.statistics->taNegativeInjectivitySimplifications++;
 

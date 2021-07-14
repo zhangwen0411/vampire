@@ -225,7 +225,7 @@ SaturationAlgorithm::SaturationAlgorithm(Problem& prb, const Options& opt)
     _clauseActivationInProgress(false),
     _fwSimplifiers(0), _simplifiers(0), _bwSimplifiers(0), _splitter(0),
     _consFinder(0), _labelFinder(0), _symEl(0), _answerLiteralManager(0),
-    _instantiation(0),
+    _instantiation(0), _induction(0),
     _generatedClauseCount(0),
     _activationLimit(0)
 {
@@ -1005,11 +1005,6 @@ bool SaturationAlgorithm::forwardSimplify(Clause* cl)
     return false;
   }
 
-  if (cl->containsFunctionDefinition()) {
-    cl->incRefCnt(); // see below
-    return true;
-  }
-
   FwSimplList::Iterator fsit(_fwSimplifiers);
 
   while (fsit.hasNext()) {
@@ -1073,9 +1068,6 @@ void SaturationAlgorithm::backwardSimplify(Clause* cl)
 {
   CALL("SaturationAlgorithm::backwardSimplify");
 
-  if (cl->containsFunctionDefinition()) {
-    return;
-  }
 
   BwSimplList::Iterator bsit(_bwSimplifiers);
   while (bsit.hasNext()) {
@@ -1189,7 +1181,7 @@ void SaturationAlgorithm::activate(Clause* cl)
     return removeSelected(cl);
   }
 
-  if (_splitter && _opt.splitAtActivation() && !cl->containsFunctionDefinition()) {
+  if (_splitter && _opt.splitAtActivation()) {
     if (_splitter->doSplitting(cl)) {
       return removeSelected(cl);
     }
@@ -1208,13 +1200,10 @@ void SaturationAlgorithm::activate(Clause* cl)
   env.statistics->activeClauses++;
   _active->add(cl);
 
-    ClauseIterator toAdd = ClauseIterator::getEmpty();
-    bool premiseRedundant = false;
-    if (_generator->canGenerateFromClause(cl)) {
-      auto generated = _generator->generateSimplify(cl);
-      toAdd = generated.clauses;
-      premiseRedundant = generated.premiseRedundant;
-    }
+    
+    auto generated = _generator->generateSimplify(cl);
+
+    ClauseIterator toAdd = generated.clauses;
 
     while (toAdd.hasNext()) {
       Clause* genCl=toAdd.next();
@@ -1246,7 +1235,7 @@ void SaturationAlgorithm::activate(Clause* cl)
     removeActiveOrPassiveClause(cl);
   }
 
-  if (premiseRedundant) {
+  if (generated.premiseRedundant) {
     _active->remove(cl);
   }
 
@@ -1357,7 +1346,7 @@ void SaturationAlgorithm::doOneAlgorithmStep()
       res.saturatedSet = collectSaturatedSet();
 
       if (_splitter) {
-        res.saturatedSet = _splitter->explicateAssertionsForSaturatedClauseSet(res.saturatedSet);
+        res.saturatedSet = _splitter->preprendCurrentlyAssumedComponentClauses(res.saturatedSet);
       }
     }
     throw MainLoopFinishedException(res);
@@ -1521,12 +1510,19 @@ SaturationAlgorithm* SaturationAlgorithm::createFromOptions(Problem& prb, const 
 
   //TODO here induction is last, is that right?
   if(opt.induction()!=Options::Induction::NONE){
-    gie->addFront(new Induction());
-
-    if ((opt.induction() == Options::Induction::STRUCTURAL || opt.induction() == Options::Induction::BOTH) &&
-        (opt.structInduction() == Options::StructuralInductionKind::REC_DEF || opt.structInduction() == Options::StructuralInductionKind::ALL)) {
-      gie->addFront(new GeneralInduction(InferenceRule::INDUCTION_AXIOM));
+    // gie->addFront(new Induction());
+    vvector<InductionSchemeGenerator*> generators;
+    if (InductionHelper::isIntInductionOneOn()) {
+      generators.push_back(new IntegerInductionSchemeGenerator());
     }
+    if (InductionHelper::isStructInductionOneOn()) {
+      generators.push_back(new StructuralInductionSchemeGenerator());
+    }
+    if (InductionHelper::isStructInductionRecDefOn()) {
+      generators.push_back(new RecursionInductionSchemeGenerator());
+    }
+    res->_induction = new GeneralInduction(generators, InferenceRule::INDUCTION_AXIOM);
+    gie->addFront(res->_induction);
   }
   if (opt.inductionHypRewriting()) {
     gie->addFront(new InductionHypothesisRewriting());
@@ -1615,6 +1611,7 @@ SaturationAlgorithm* SaturationAlgorithm::createFromOptions(Problem& prb, const 
   }
   if (env.options->functionDefinitionRewriting()) {
     gie->addFront(new FnDefRewriting());
+    res->addForwardSimplifierToFront(new FnDefRewriting());
   }
 
   CompositeSGI* sgi = new CompositeSGI();

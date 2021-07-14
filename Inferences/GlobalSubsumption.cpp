@@ -87,10 +87,6 @@ Clause* GlobalSubsumption::perform(Clause* cl, Stack<Unit*>& prems)
 
   TimeCounter tc(TC_GLOBAL_SUBSUMPTION);
 
-  if (cl->containsFunctionDefinition()) {
-    return cl;
-  }
-
   if(cl->color()==COLOR_LEFT) {
     return cl;
   }

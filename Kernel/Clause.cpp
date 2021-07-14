@@ -74,9 +74,7 @@ Clause::Clause(unsigned length,const Inference& inf)
     _reductionTimestamp(0),
     _literalPositions(0),
     _numActiveSplits(0),
-    _auxTimestamp(0),
-    _functionDefLitOrientationMap(0),
-    _inductionHypothesisMap(0)
+    _auxTimestamp(0)
 {
   // MS: TODO: not sure if this belongs here and whether EXTENSIONALITY_AXIOM input types ever appear anywhere (as a vampire-extension TPTP formula role)
   if(inference().inputType() == UnitInputType::EXTENSIONALITY_AXIOM){
@@ -125,10 +123,6 @@ void Clause::destroyExceptInferenceObject()
 {
   if (_literalPositions) {
     delete _literalPositions;
-  }
-  if (_functionDefLitOrientationMap) {
-    delete _functionDefLitOrientationMap;
-    _functionDefLitOrientationMap = 0;
   }
 
   RSTAT_CTR_INC("clauses deleted");
@@ -344,31 +338,9 @@ vstring Clause::literalsOnlyToString() const
   } else {
     vstring result;
     result += _literals[0]->toString();
-    if (isFunctionDefinition(_literals[0])) {
-      result += " [fn]";
-      if (isReversedFunctionDefinition(_literals[0])) {
-        result +="[r]";
-      }
-    }
-    vset<unsigned> sig;
-    bool hyp, rev;
-    if (isInductionLiteral(_literals[0], sig, hyp, rev)) {
-      result += hyp ? " [ih]" : " [ic]";
-      result += "[" + Int::toString(sig.size()) + "]";
-    }
     for(unsigned i = 1; i < _length; i++) {
       result += " | ";
       result += _literals[i]->toString();
-      if (isFunctionDefinition(_literals[i])) {
-        result += " [fn]";
-        if (isReversedFunctionDefinition(_literals[i])) {
-          result +="[r]";
-        }
-      }
-      if (isInductionLiteral(_literals[i], sig, hyp, rev)) {
-        result += hyp ? " [ih]" : " [ic]";
-        result += "[" + Int::toString(sig.size()) + "]";
-      }
     }
     return result;
   }
@@ -462,6 +434,13 @@ vstring Clause::toString() const
     result += ",allAx:" + Int::toString((int)(_inference.all_ancestors));
 
     result += ",thDist:" + Int::toString( _inference.th_ancestors * env.options->theorySplitQueueExpectedRatioDenom() - _inference.all_ancestors);
+    if (_inference.inductionInfo()) {
+      auto it = _inference.inductionInfo()->iterator();
+      result += ",ind:";
+      while (it.hasNext()) {
+        result += Term::create(it.next(), 0, nullptr)->toString() + ",";
+      }
+    }
     result += vstring("}");
   }
 

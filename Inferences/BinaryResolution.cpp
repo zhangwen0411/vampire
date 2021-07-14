@@ -263,13 +263,6 @@ Clause* BinaryResolution::generateClause(Clause* queryCl, Literal* queryLit, SLQ
       }
       ASS(next < newLength);
       (*res)[next] = newLit;
-      vset<unsigned> sig;
-      bool hyp, rev;
-      if (queryCl->isInductionLiteral(curr, sig, hyp, rev)) {
-        for (const auto& s : sig) {
-          res->markInductionLiteral(s, newLit, hyp, rev ^ newLit->isOrientedReversed());
-        }
-      }
       next++;
     }
   }
@@ -308,13 +301,6 @@ Clause* BinaryResolution::generateClause(Clause* queryCl, Literal* queryLit, SLQ
       }
 
       (*res)[next] = newLit;
-      vset<unsigned> sig;
-      bool hyp, rev;
-      if (qr.clause->isInductionLiteral(curr, sig, hyp, rev)) {
-        for (const auto& s : sig) {
-          res->markInductionLiteral(s, newLit, hyp, rev ^ newLit->isOrientedReversed());
-        }
-      }
       next++;
     }
   }

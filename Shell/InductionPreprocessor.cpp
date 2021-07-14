@@ -19,8 +19,6 @@
 #include "Kernel/Unit.hpp"
 #include "Kernel/Signature.hpp"
 
-#include "FunctionDefinitionDiscovery.hpp"
-
 using namespace Kernel;
 
 namespace Shell {
@@ -51,6 +49,85 @@ TermList TermListReplacement::transformSubterm(TermList trm)
   return trm;
 }
 
+void FnDefHandler::handleClause(Clause* c, unsigned fi, bool reversed)
+{
+  CALL("FnDefHandler::handleClause");
+
+  auto lit = (*c)[fi];
+  auto trueFun = lit->isEquality();
+  TermList header;
+  vvector<TermList> recursiveCalls;
+  unsigned fn;
+
+  if (trueFun) {
+    ASS(lit->isPositive());
+    header = *lit->nthArgument(reversed ? 1 : 0);
+    TermList body = *lit->nthArgument(reversed ? 0 : 1);
+    ASS(header.isTerm());
+    ASS(header.containsAllVariablesOf(body));
+
+    static const bool fnrw = env.options->functionDefinitionRewriting();
+    if (fnrw) {
+      _is->insert(header, lit, c);
+    }
+
+    fn = header.term()->functor();
+    InductionPreprocessor::processCase(fn, body, recursiveCalls);
+  } else {
+    // look for other literals with the same top-level functor
+    fn = lit->functor();
+    header = TermList(lit);
+    for(unsigned i = 0; i < c->length(); i++) {
+      if (fi != i) {
+        Literal* curr = (*c)[i];
+        if (!curr->isEquality() && fn == curr->functor()) {
+          recursiveCalls.push_back(TermList(curr));
+        }
+      }
+    }
+  }
+  auto p = make_pair(fn, trueFun);
+  auto templIt = _templates.find(p);
+  if (templIt == _templates.end()) {
+    templIt = _templates.insert(make_pair(p, InductionTemplate())).first;
+  }
+
+  templIt->second.addBranch(std::move(recursiveCalls), std::move(header));
+}
+
+void FnDefHandler::finalize() {
+  for (auto it = _templates.begin(); it != _templates.end();) {
+    if (!it->second.checkWellFoundedness()) {
+      env.beginOutput();
+      env.out() << "% Warning: " << it->second << " is not well founded" << endl;
+      env.endOutput();
+      it = _templates.erase(it);
+      continue;
+    }
+    if (!it->second.checkUsefulness()) {
+      it = _templates.erase(it);
+      continue;
+    }
+    vvector<vvector<TermList>> missingCases;
+    if (!it->second.checkWellDefinedness(missingCases) && !missingCases.empty()) {
+      it->second.addMissingCases(missingCases);
+    }
+    it->second.sortBranches();
+
+    if(env.options->showInduction()){
+      env.beginOutput();
+      if (it->first.second) {
+        env.out() << "[Induction] function: " << env.signature->getFunction(it->first.first)->name() << endl;
+      } else {
+        env.out() << "[Induction] predicate: " << env.signature->getPredicate(it->first.first)->name() << endl;
+      }
+      env.out() << ", with induction template: " << it->second << endl;
+      env.endOutput();
+    }
+    it++;
+  }
+}
+
 ostream& operator<<(ostream& out, const InductionTemplate::Branch& branch)
 {
   if (!branch._recursiveCalls.empty()) {
@@ -71,11 +148,10 @@ ostream& operator<<(ostream& out, const InductionTemplate::Branch& branch)
 bool InductionTemplate::checkWellDefinedness(vvector<vvector<TermList>>& missingCases)
 {
   vvector<Term*> cases;
-  unsigned var = 0;
   for (auto& b : _branches) {
     cases.push_back(b._header.term());
   }
-  return InductionPreprocessor::checkWellDefinedness(cases, missingCases, var);
+  return InductionPreprocessor::checkWellDefinedness(cases, missingCases);
 }
 
 void InductionTemplate::addMissingCases(const vvector<vvector<TermList>>& missingCases)
@@ -106,17 +182,34 @@ void InductionTemplate::addMissingCases(const vvector<vvector<TermList>>& missin
   env.endOutput();
 }
 
+void InductionTemplate::sortBranches()
+{
+  sort(_branches.begin(), _branches.end(), [](const Branch& b1, const Branch& b2) {
+    return b1._recursiveCalls.size() < b2._recursiveCalls.size();
+  });
+}
+
 bool InductionTemplate::Branch::contains(InductionTemplate::Branch other)
 {
-  if (!MatchingUtils::haveVariantArgs(_header.term(), other._header.term()))
-  {
+  RobSubstitution subst;
+  if (!subst.unify(_header, 0, other._header, 1)) {
     return false;
   }
+
   for (auto recCall2 : other._recursiveCalls) {
     bool found = false;
     for (auto recCall1 : _recursiveCalls) {
-      if (MatchingUtils::haveVariantArgs(recCall1.term(), recCall2.term()))
-      {
+      TermList r1, r2;
+      if (_header.term()->isLiteral()) {
+        auto l1 = subst.apply(static_cast<Literal*>(recCall1.term()), 0);
+        auto l2 = subst.apply(static_cast<Literal*>(recCall2.term()), 1);
+        r1 = TermList(l1);
+        r2 = TermList(l1->polarity() != l2->polarity() ? Literal::complementaryLiteral(l2) : l2);
+      } else {
+        r1 = subst.apply(recCall1, 0);
+        r2 = subst.apply(recCall2, 1);
+      }
+      if (r1 == r2) {
         found = true;
         break;
       }
@@ -245,118 +338,6 @@ void InductionPreprocessor::processCase(const unsigned fn, TermList body, vvecto
   }
 }
 
-void InductionPreprocessor::preprocessProblem(Problem& prb)
-{
-  CALL("InductionPreprocessor::preprocessProblem");
-
-  FunctionDefinitionDiscovery d;
-  vmap<pair<unsigned, bool>, InductionTemplate> templates;
-  UnitList::Iterator it(prb.units());
-  while (it.hasNext()) {
-    auto unit = it.next();
-    if (!unit->isClause()){
-      continue;
-    }
-
-    auto clause = unit->asClause();
-    unsigned length = clause->length();
-    if (!clause->containsFunctionDefinition()) {
-      if (env.options->functionDefinitionDiscovery()) {
-        d.findPossibleDefinitions(clause);
-      }
-      continue;
-    }
-    // first we find the only function
-    // definition literal in the clause
-    Literal* fndef = nullptr;
-    for(unsigned i = 0; i < length; i++) {
-      Literal* curr = (*clause)[i];
-      if (clause->isFunctionDefinition(curr)) {
-        ASS(!fndef);
-        fndef = curr;
-      }
-    }
-
-    if (fndef->isEquality()) {
-      // if it is an equality the task is
-      // to identify the lhs and collect any
-      // recursive calls from the rhs
-      auto rev = clause->isReversedFunctionDefinition(fndef);
-      auto lhs = *fndef->nthArgument(rev ? 1 : 0);
-      auto rhs = *fndef->nthArgument(rev ? 0 : 1);
-      ASS(lhs.isTerm());
-
-      auto fn = lhs.term()->functor();
-      auto p = make_pair(fn, false);
-      auto templIt = templates.find(p);
-      if (templIt == templates.end()) {
-        templIt = templates.insert(make_pair(p, InductionTemplate())).first;
-      }
-
-      vvector<TermList> recursiveCalls;
-      processCase(fn, rhs, recursiveCalls);
-      static const bool fnrw = env.options->functionDefinitionRewriting();
-      if (!fnrw) {
-        clause->clearFunctionDefinitions();
-      }
-      templIt->second.addBranch(std::move(recursiveCalls), std::move(lhs));
-    } else {
-      // otherwise we go once again through
-      // the clause and look for other literals
-      // with the same top-level functor
-      auto functor = fndef->functor();
-      auto p = make_pair(functor, true);
-      auto templIt = templates.find(p);
-      if (templIt == templates.end()) {
-        templIt = templates.insert(make_pair(p, InductionTemplate())).first;
-      }
-
-      vvector<TermList> recursiveCalls;
-      for(unsigned i = 0; i < length; i++) {
-        Literal* curr = (*clause)[i];
-        if (curr != fndef) {
-          if (!curr->isEquality() && functor == curr->functor()) {
-            recursiveCalls.push_back(TermList(curr));
-          }
-        }
-      }
-      // we unmake it, in saturation we do not process
-      // predicate definitions differently (yet)
-      clause->clearFunctionDefinitions();
-      templIt->second.addBranch(std::move(recursiveCalls), std::move(TermList(fndef)));
-    }
-  }
-  for (const auto& kv : templates) {
-    auto templ = kv.second;
-    if (!templ.checkWellFoundedness()) {
-      env.beginOutput();
-      env.out() << "% Warning: " << templ << " is not well founded" << endl;
-      env.endOutput();
-      continue;
-    }
-    if (!templ.checkUsefulness()) {
-      continue;
-    }
-    vvector<vvector<TermList>> missingCases;
-    if (!templ.checkWellDefinedness(missingCases) && !missingCases.empty()) {
-      templ.addMissingCases(missingCases);
-    }
-
-    if(env.options->showInduction()){
-      env.beginOutput();
-      if (kv.first.second) {
-        env.out() << "[Induction] predicate: " << env.signature->getPredicate(kv.first.first)->name() << endl;
-      } else {
-        env.out() << "[Induction] function: " << env.signature->getFunction(kv.first.first)->name() << endl;
-      }
-      env.out() << ", with induction template: " << templ << endl;
-      env.endOutput();
-    }
-    env.signature->addInductionTemplate(kv.first.first, kv.first.second, std::move(templ));
-  }
-  d.addBestConfiguration();
-}
-
 bool checkWellFoundednessHelper(const vvector<pair<TermList,TermList>>& relatedTerms,
   const vset<unsigned>& indices, const vset<unsigned>& positions)
 {
@@ -425,7 +406,7 @@ bool InductionPreprocessor::checkWellFoundedness(const vvector<pair<TermList,Ter
   return checkWellFoundednessHelper(relatedTerms, indices, positions);
 }
 
-bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vvector<vvector<TermList>>& missingCases, unsigned& var)
+bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vvector<vvector<TermList>>& missingCases)
 {
   if (cases.empty()) {
     return false;
@@ -436,6 +417,7 @@ bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vv
     return true;
   }
   vvector<vvector<TermList>> availableTermsEmpty;
+  unsigned var = 0;
   for (unsigned i = 0; i < arity; i++) {
     vvector<TermList> v;
     v.push_back(TermList(var++, false));
@@ -499,7 +481,7 @@ bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vv
         argTuples.begin(), argTuples.end());
     }
   }
-  return !overdefined && missingCases.empty();
+  return /* !overdefined && */ missingCases.empty();
 }
 
 } // Shell

@@ -230,6 +230,10 @@ void Inference::updateStatistics()
         _inductionDepth = static_cast<Unit*>(_ptr1)->inference().inductionDepth();
         _XXNarrows = static_cast<Unit*>(_ptr1)->inference().xxNarrows();
         _reductions = static_cast<Unit*>(_ptr1)->inference().reductions();
+        if (static_cast<Unit*>(_ptr1)->inference()._inductionInfo) {
+          _inductionInfo = new DHSet<unsigned>();
+          _inductionInfo->loadFromIterator(static_cast<Unit*>(_ptr1)->inference()._inductionInfo->iterator());
+        }
       } else {
         _inductionDepth = max(static_cast<Unit*>(_ptr1)->inference().inductionDepth(),
             static_cast<Unit*>(_ptr2)->inference().inductionDepth());
@@ -237,6 +241,16 @@ void Inference::updateStatistics()
             static_cast<Unit*>(_ptr2)->inference().xxNarrows());
         _reductions = max(static_cast<Unit*>(_ptr1)->inference().reductions(),
             static_cast<Unit*>(_ptr2)->inference().reductions());
+        if (static_cast<Unit*>(_ptr1)->inference()._inductionInfo) {
+          _inductionInfo = new DHSet<unsigned>();
+          _inductionInfo->loadFromIterator(static_cast<Unit*>(_ptr1)->inference()._inductionInfo->iterator());
+          if (static_cast<Unit*>(_ptr2)->inference()._inductionInfo) {
+            _inductionInfo->loadFromIterator(static_cast<Unit*>(_ptr2)->inference()._inductionInfo->iterator());
+          }
+        } else if (static_cast<Unit*>(_ptr2)->inference()._inductionInfo) {
+          _inductionInfo = new DHSet<unsigned>();
+          _inductionInfo->loadFromIterator(static_cast<Unit*>(_ptr2)->inference()._inductionInfo->iterator());
+        }
       }
 
       break;
@@ -248,6 +262,12 @@ void Inference::updateStatistics()
         _inductionDepth = max(_inductionDepth,it->head()->inference().inductionDepth());
         _XXNarrows = max(_XXNarrows,it->head()->inference().inductionDepth());
         _reductions = max(_reductions,it->head()->inference().inductionDepth());
+        if (it->head()->inference()._inductionInfo) {
+          if (!_inductionInfo) {
+            _inductionInfo = new DHSet<unsigned>();
+          }
+          _inductionInfo->loadFromIterator(it->head()->inference()._inductionInfo->iterator());
+        }
         it=it->tail();
       }
       break;
@@ -296,6 +316,13 @@ vstring Inference::toString() const
   result += ", age: " + Int::toString(_age);
   result += ", thAx:" + Int::toString((int)(th_ancestors));
   result += ", allAx:" + Int::toString((int)(all_ancestors));
+  if (_inductionInfo) {
+    auto it = _inductionInfo->iterator();
+    result += ",ind:";
+    while (it.hasNext()) {
+      result += Term::create(it.next(), 0, nullptr)->toString() + ",";
+    }
+  }
 
   return result;
 }
@@ -736,6 +763,8 @@ vstring Kernel::ruleName(InferenceRule rule)
     return "superposition";
   case InferenceRule::FNDEF_REWRITING:
     return "fn def rewriting";
+  case InferenceRule::FNDEF_DEMODULATION:
+    return "fn def demodulation";
   case InferenceRule::IH_REWRITING:
     return "induction hypothesis rewriting";
   case InferenceRule::CONSTRAINED_SUPERPOSITION:

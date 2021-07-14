@@ -840,9 +840,12 @@ class Signature
   VirtualIterator<Shell::TermAlgebra*> termAlgebrasIterator() const { return _termAlgebras.range(); }
   Shell::TermAlgebraConstructor* getTermAlgebraConstructor(unsigned functor);
 
-  bool hasInductionTemplate(unsigned fn, bool pred) { return _inductionTemplates.find(make_pair(fn, pred)); }
-  Shell::InductionTemplate& getInductionTemplate(unsigned fn, bool pred) { return _inductionTemplates.get(make_pair(fn, pred)); }
-  void addInductionTemplate(unsigned fn, bool pred, Shell::InductionTemplate&& templ) { _inductionTemplates.insert(make_pair(fn, pred), templ); }
+  Shell::FnDefHandler* getFnDefHandler() {
+    if (!_fnDefHandler) {
+      _fnDefHandler = new Shell::FnDefHandler();
+    }
+    return _fnDefHandler;
+  }
 
   void recordDividesNvalue(TermList n){
     _dividesNvalues.push(n);
@@ -918,7 +921,7 @@ private:
    */ 
   DHMap<TermList, Shell::TermAlgebra*> _termAlgebras;
 
-  DHMap<pair<unsigned, bool>, Shell::InductionTemplate> _inductionTemplates;
+  Shell::FnDefHandler* _fnDefHandler;
 
   //TODO Why are these here? They are not used anywhere. AYB
   //void defineOptionTermAlgebra(unsigned optionSort);

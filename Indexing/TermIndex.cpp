@@ -27,7 +27,6 @@
 #include "Kernel/TermIterators.hpp"
 
 #include "Shell/LambdaElimination.hpp"
-#include "Shell/Options.hpp"
 
 #include "TermIndex.hpp"
 
@@ -77,10 +76,6 @@ void SuperpositionSubtermIndex::handleClause(Clause* c, bool adding)
 {
   CALL("SuperpositionSubtermIndex::handleClause");
 
-  if (c->containsFunctionDefinition()) {
-    return;
-  }
-
   TimeCounter tc(TC_BACKWARD_SUPERPOSITION_INDEX_MAINTENANCE);
 
   unsigned selCnt=c->numSelected();
@@ -109,10 +104,6 @@ void SuperpositionLHSIndex::handleClause(Clause* c, bool adding)
 
   TimeCounter tc(TC_FORWARD_SUPERPOSITION_INDEX_MAINTENANCE);
 
-  if (c->containsFunctionDefinition()) {
-    return;
-  }
-
   unsigned selCnt=c->numSelected();
   for (unsigned i=0; i<selCnt; i++) {
     Literal* lit=(*c)[i];
@@ -129,37 +120,6 @@ void SuperpositionLHSIndex::handleClause(Clause* c, bool adding)
   }
 }
 
-void FnDefLHSIndex::handleClause(Clause* c, bool adding)
-{
-  CALL("FnDefLHSIndex::handleClause");
-
-  TimeCounter tc(TC_FORWARD_SUPERPOSITION_INDEX_MAINTENANCE);
-
-  if (!c->containsFunctionDefinition()) {
-    return;
-  }
-
-  unsigned cnt = 0;
-  for (unsigned i = 0; i < c->length(); i++) {
-    Literal* lit=(*c)[i];
-    if (!c->isFunctionDefinition(lit)) {
-      continue;
-    }
-    cnt++;
-    TermIterator lhsi=EqHelper::getFnDefLHSIterator(lit, c->isReversedFunctionDefinition(lit));
-    while (lhsi.hasNext()) {
-      TermList lhs=lhsi.next();
-      if (adding) {
-	_is->insert(lhs, lit, c);
-      }
-      else {
-	_is->remove(lhs, lit, c);
-      }
-    }
-  }
-  ASS_EQ(cnt, 1);
-}
-
 void IHLHSIndex::handleClause(Clause* c, bool adding)
 {
   CALL("IHLHSIndex::handleClause");
@@ -168,25 +128,12 @@ void IHLHSIndex::handleClause(Clause* c, bool adding)
 
   for (unsigned i = 0; i < c->length(); i++) {
     Literal* lit=(*c)[i];
-    if (!lit->isEquality() || !lit->isPositive()) {
+    if (!lit->isEquality() || lit->isNegative() || !InductionHelper::isInductionLiteral(lit, c)) {
       continue;
     }
-    vset<unsigned> sig;
-    bool hyp = false, rev;
-    bool ind = c->isInductionLiteral(lit, sig, hyp, rev);
-    if (!ind || !hyp) {
-      continue;
-    }
-    static const bool ordered = _opt.inductionHypRewritingOrdered();
-    TermIterator lhsi;
-    if (ordered) {
-      lhsi = EqHelper::getLHSIterator(lit, _ord);
-    } else {
-      lhsi = EqHelper::getEqualityArgumentIterator(lit);
-    }
+    TermIterator lhsi = EqHelper::getEqualityArgumentIterator(lit);
     while (lhsi.hasNext()) {
-      TermList rhs = lhsi.next();
-      TermList lhs = EqHelper::getOtherEqualitySide(lit, rhs);
+      TermList lhs = lhsi.next();
       if (adding) {
 	      _is->insert(lhs, lit, c);
       } else {
@@ -202,25 +149,14 @@ void ICSubtermIndex::handleClause(Clause* c, bool adding)
 
   TimeCounter tc(TC_FORWARD_SUPERPOSITION_INDEX_MAINTENANCE);
 
-  if (c->containsFunctionDefinition()) {
-    return;
-  }
-
   static DHSet<TermList> inserted;
 
   for (unsigned i = 0; i < c->length(); i++) {
     inserted.reset();
     Literal* lit=(*c)[i];
-    if (!lit->isEquality()) {
+    if (!lit->isEquality() || lit->isPositive() || !InductionHelper::isInductionLiteral(lit, c)) {
       continue;
     }
-    vset<unsigned> sig;
-    bool hyp = true, rev;
-    bool ind = c->isInductionLiteral(lit, sig, hyp, rev);
-    if (!ind || hyp) {
-      continue;
-    }
-    ASS(lit->isEquality());
     NonVariableIterator nvi(lit);
     while (nvi.hasNext()) {
       TermList t=nvi.next();
@@ -247,10 +183,6 @@ void DemodulationSubtermIndexImpl<combinatorySupSupport>::handleClause(Clause* c
   CALL("DemodulationSubtermIndex::handleClause");
 
   TimeCounter tc(TC_BACKWARD_DEMODULATION_INDEX_MAINTENANCE);
-
-  if (c->containsFunctionDefinition()) {
-    return;
-  }
 
   static DHSet<TermList> inserted;
 
@@ -300,7 +232,7 @@ void DemodulationLHSIndex::handleClause(Clause* c, bool adding)
   TimeCounter tc(TC_FORWARD_DEMODULATION_INDEX_MAINTENANCE);
 
   Literal* lit=(*c)[0];
-  TermIterator lhsi=EqHelper::getDemodulationLHSIterator(lit, true, _ord, _opt, c->containsFunctionDefinition(), c->isReversedFunctionDefinition(lit));
+  TermIterator lhsi=EqHelper::getDemodulationLHSIterator(lit, true, _ord, _opt);
   while (lhsi.hasNext()) {
     if (adding) {
       _is->insert(lhsi.next(), lit, c);

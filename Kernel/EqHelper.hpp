@@ -23,7 +23,6 @@
 #include "Lib/PairUtils.hpp"
 #include "Lib/DHSet.hpp"
 
-#include "Clause.hpp"
 #include "Term.hpp"
 
 namespace Kernel {
@@ -44,9 +43,8 @@ public:
   static TermIterator getLHSIterator(Literal* lit, const Ordering& ord);
   static TermIterator getSuperpositionLHSIterator(Literal* lit, const Ordering& ord, const Options& opt);
   static TermIterator getSubVarSupLHSIterator(Literal* lit, const Ordering& ord);
-  static TermIterator getDemodulationLHSIterator(Literal* lit, bool forward, const Ordering& ord, const Options& opt, bool fndef = false, bool reversed = false);
+  static TermIterator getDemodulationLHSIterator(Literal* lit, bool forward, const Ordering& ord, const Options& opt);
   static TermIterator getEqualityArgumentIterator(Literal* lit);
-  static TermIterator getFnDefLHSIterator(Literal* lit, bool reversed);
 
   static Term* replace(Term* t, TermList what, TermList by);
   static Literal* replace(Literal* lit, TermList what, TermList by);

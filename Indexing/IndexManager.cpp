@@ -193,6 +193,7 @@ Index* IndexManager::create(IndexType t)
     //tis->markTagged();
     isGenerating = true;
     break;
+
   case SUB_VAR_SUP_SUBTERM_SUBST_TREE:
     //using a substitution tree to store variable.
     //TODO update
@@ -294,12 +295,7 @@ Index* IndexManager::create(IndexType t)
     res = new InductionTermIndex(tis);
     isGenerating = true;
     break;
-  
-  case FNDEF_LHS_SUBST_TREE:
-    tis=new TermSubstitutionTree(useConstraints);
-    res=new FnDefLHSIndex(tis);
-    isGenerating = true;
-    break;
+
   case IH_LHS_SUBST_TREE:
     tis=new TermSubstitutionTree();
     res=new IHLHSIndex(tis, _alg->getOrdering(), _alg->getOptions());

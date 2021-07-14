@@ -16,12 +16,14 @@
 #define __InductionPreprocessor__
 
 #include "Forwards.hpp"
+#include "Indexing/TermSubstitutionTree.hpp"
 #include "Kernel/Term.hpp"
 #include "Kernel/TermTransformer.hpp"
 #include "Lib/STL.hpp"
 
 namespace Shell {
 
+using namespace Indexing;
 using namespace Kernel;
 using namespace Lib;
 
@@ -49,6 +51,7 @@ struct InductionTemplate {
   bool checkWellFoundedness();
   bool checkWellDefinedness(vvector<vvector<TermList>>& missingCases);
   void addMissingCases(const vvector<vvector<TermList>>& missingCases);
+  void sortBranches();
 
   /**
    * Stores the template for a recursive case
@@ -82,15 +85,43 @@ private:
 ostream& operator<<(ostream& out, const InductionTemplate::Branch& branch);
 ostream& operator<<(ostream& out, const InductionTemplate& templ);
 
+class FnDefHandler
+{
+public:
+  CLASS_NAME(FnDefHandler);
+  USE_ALLOCATOR(FnDefHandler);
+
+  FnDefHandler()
+    : _is(new TermSubstitutionTree()) {}
+
+  void handleClause(Clause* c, unsigned i, bool reversed);
+  void finalize();
+
+  TermQueryResultIterator getGeneralizations(TermList t) {
+    return _is->getGeneralizations(t, true);
+  }
+
+  bool hasInductionTemplate(unsigned fn, bool trueFun) {
+    return _templates.count(make_pair(fn, trueFun));
+  }
+
+  const InductionTemplate& getInductionTemplate(unsigned fn, bool trueFun) {
+    return _templates.at(make_pair(fn, trueFun));
+  }
+
+private:
+  unique_ptr<TermIndexingStructure> _is;
+  vmap<pair<unsigned, bool>, InductionTemplate> _templates;
+};
+
 /**
  * This class generates the induction templates based on
  * the marked recursive function definitions from the parser.
  */
 struct InductionPreprocessor {
   static void processCase(const unsigned fn, TermList body, vvector<TermList>& recursiveCalls);
-  static void preprocessProblem(Problem& prb);
   static bool checkWellFoundedness(const vvector<pair<TermList,TermList>>& relatedTerms);
-  static bool checkWellDefinedness(const vvector<Term*>& cases, vvector<vvector<TermList>>& missingCases, unsigned& var);
+  static bool checkWellDefinedness(const vvector<Term*>& cases, vvector<vvector<TermList>>& missingCases);
 };
 
 } // Shell

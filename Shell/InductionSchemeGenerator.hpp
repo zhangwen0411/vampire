@@ -16,6 +16,7 @@
 #define __InductionSchemeGenerator__
 
 #include "Forwards.hpp"
+#include "Kernel/Substitution.hpp"
 #include "Kernel/Term.hpp"
 #include "Kernel/TermTransformer.hpp"
 #include "Indexing/Index.hpp"
@@ -46,6 +47,7 @@ public:
     ASS(!_finished);
     _finished = true;
     const auto c = num_bits();
+    ASS(c); // if no bits are present, something is wrong
     auto temp = _occ;
     _occ = 0;
     for (uint64_t i = 0; i < c; i++) {
@@ -110,7 +112,7 @@ private:
   bool _finished;
 };
 
-using OccurrenceMap = vmap<pair<Literal*, TermList>, Occurrences>;
+using OccurrenceMap = vmap<pair<Literal*, Term*>, Occurrences>;
 
 class VarReplacement : public TermTransformer {
 public:
@@ -127,11 +129,22 @@ private:
  */
 class TermReplacement : public TermTransformer {
 public:
-  TermReplacement(const vmap<TermList, TermList>& r) : _r(r) {}
+  TermReplacement(const DHMap<TermList, vvector<Term*>>& m, const vmap<Term*, unsigned>& r)
+    : _m(m), _r(r), _ord(), _curr()
+  {
+    auto it = _m.items();
+    while (it.hasNext()) {
+      auto kv = it.next();
+      _curr.insert(make_pair(kv.first, 0));
+    }
+  }
   TermList transformSubterm(TermList trm) override;
 
 private:
-  const vmap<TermList, TermList>& _r;
+  const DHMap<TermList, vvector<Term*>>& _m;
+  const vmap<Term*, unsigned>& _r;
+  vmap<Term*, unsigned> _ord;
+  vmap<TermList, unsigned> _curr;
 };
 
 /**
@@ -139,13 +152,14 @@ private:
  */
 class TermOccurrenceReplacement : public TermTransformer {
 public:
-  TermOccurrenceReplacement(const vmap<TermList, TermList>& r,
-                            const OccurrenceMap& occ, Literal* lit)
+  TermOccurrenceReplacement(const vmap<Term*, unsigned>& r,
+                             const OccurrenceMap& occ, Literal* lit)
                             : _r(r), _o(occ), _lit(lit) {}
+  Literal* transformLit() { return transform(_lit); }
   TermList transformSubterm(TermList trm) override;
 
 private:
-  const vmap<TermList, TermList>& _r;
+  const vmap<Term*, unsigned>& _r;
   OccurrenceMap _o;
   Literal* _lit;
 };
@@ -156,36 +170,37 @@ private:
 class InductionScheme
 {
 public:
+  InductionScheme(const vmap<Term*, unsigned>& indTerms, bool noChecks = false)
+    : _cases(), _inductionTerms(indTerms), _finalized(false), _noChecks(noChecks) {}
+
   struct Case {
     Case() = default;
-    Case(vvector<vmap<TermList, TermList>>&& recursiveCalls,
-                    vmap<TermList, TermList>&& step)
+    Case(vvector<Substitution>&& recursiveCalls, Substitution&& step)
       : _recursiveCalls(recursiveCalls), _step(step) {}
-    bool contains(const Case& other, unsigned& var) const;
+    bool contains(const Case& other, const vmap<Term*, unsigned>& indTerms1, const vmap<Term*, unsigned>& indTerms2) const;
 
-    vvector<vmap<TermList, TermList>> _recursiveCalls;
-    vmap<TermList, TermList> _step;
+    vvector<Substitution> _recursiveCalls;
+    Substitution _step;
   };
 
-  void addCase(vvector<vmap<TermList, TermList>>&& recursiveCalls, vmap<TermList, TermList>&& step) {
+  void addCase(vvector<Substitution>&& recursiveCalls, Substitution&& step) {
     _cases.emplace_back(std::move(recursiveCalls), std::move(step));
   }
   void addCase(Case&& c) {
     _cases.push_back(std::move(c));
   }
   bool finalize();
-  static TermList createRepresentingTerm(const vset<TermList>& inductionTerms, const vmap<TermList,TermList>& r, unsigned& var);
+  static TermList createRepresentingTerm(const vmap<Term*, unsigned>& inductionTerms, const Substitution& s);
   const vvector<Case>& cases() const { ASS(_finalized); return _cases; }
-  const vset<TermList>& inductionTerms() const { ASS(_finalized); return _inductionTerms; }
-  unsigned maxVar() const { ASS(_finalized); return _maxVar; }
+  const vmap<Term*, unsigned>& inductionTerms() const { ASS(_finalized); return _inductionTerms; }
 
 private:
   bool addBaseCases();
 
   vvector<Case> _cases;
-  unsigned _maxVar;
-  vset<TermList> _inductionTerms;
-  bool _finalized = false;
+  vmap<Term*, unsigned> _inductionTerms;
+  bool _finalized;
+  bool _noChecks;
 };
 
 ostream& operator<<(ostream& out, const InductionScheme& scheme);
@@ -196,18 +211,24 @@ ostream& operator<<(ostream& out, const InductionScheme& scheme);
  * Also stores all active occurrences of possible induction terms.
  */
 struct InductionSchemeGenerator {
+  virtual ~InductionSchemeGenerator() = default;
   virtual void generate(
     const SLQueryResult& main,
     const vset<pair<Literal*,Clause*>>& side,
     vvector<pair<InductionScheme, OccurrenceMap>>& res) = 0;
+  virtual bool setsFixOccurrences() const { return false; }
 };
 
 struct RecursionInductionSchemeGenerator
   : public InductionSchemeGenerator
 {
+  CLASS_NAME(RecursionInductionSchemeGenerator);
+  USE_ALLOCATOR(RecursionInductionSchemeGenerator);
+
   void generate(const SLQueryResult& main,
     const vset<pair<Literal*,Clause*>>& side,
     vvector<pair<InductionScheme, OccurrenceMap>>& res) override;
+  bool setsFixOccurrences() const override { return true; }
 
 private:
   void generate(Clause* premise, Literal* lit,
@@ -224,12 +245,29 @@ private:
 struct StructuralInductionSchemeGenerator
   : public InductionSchemeGenerator
 {
+  CLASS_NAME(StructuralInductionSchemeGenerator);
+  USE_ALLOCATOR(StructuralInductionSchemeGenerator);
+
   void generate(const SLQueryResult& main,
     const vset<pair<Literal*,Clause*>>& side,
     vvector<pair<InductionScheme, OccurrenceMap>>& res) override;
 
 private:
   InductionScheme generateStructural(Term* term);
+};
+
+struct IntegerInductionSchemeGenerator
+  : public InductionSchemeGenerator
+{
+  CLASS_NAME(IntegerInductionSchemeGenerator);
+  USE_ALLOCATOR(IntegerInductionSchemeGenerator);
+
+  void generate(const SLQueryResult& main,
+    const vset<pair<Literal*,Clause*>>& side,
+    vvector<pair<InductionScheme, OccurrenceMap>>& res) override;
+
+private:
+  InductionScheme generateInteger(Term* term);
 };
 
 } // Shell

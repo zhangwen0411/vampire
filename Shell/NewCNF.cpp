@@ -1513,9 +1513,15 @@ void NewCNF::toClauses(SPGenClause gc, Stack<Clause*>& output)
     List<GenLit>* gls = List<List<GenLit>*>::pop(genClauses);
     SPGenClause genClause = makeGenClause(gls, gc->bindings, BindingList::empty());
     if (genClause->valid) {
-      Clause* clause = toClause(genClause);
+      bool fndef = false;
+      Clause* clause = toClause(genClause, fndef);
       LOG1(clause->toString());
-      output.push(clause);
+      static const bool fnrw = env.options->functionDefinitionRewriting();
+      if (!fnrw || !fndef) {
+        output.push(clause);
+      } else {
+        clause->setSplits(SplitSet::getEmpty());
+      }
     } else {
       LOG2(genClause->toString(), "was removed as it contains a tautology");
     }
@@ -1561,7 +1567,7 @@ bool NewCNF::mapSubstitution(List<GenLit>* clause, Substitution subst, bool only
   return true;
 }
 
-Clause* NewCNF::toClause(SPGenClause gc)
+Clause* NewCNF::toClause(SPGenClause gc, bool& fndef)
 {
   CALL("NewCNF::toClause");
 
@@ -1598,18 +1604,22 @@ Clause* NewCNF::toClause(SPGenClause gc)
   }
 
   Clause* clause = new(gc->size()) Clause(gc->size(),FormulaTransformation(InferenceRule::CLAUSIFY,_beingClausified));
+  unsigned fi = gc->size();
   for (int i = gc->size() - 1; i >= 0; i--) {
     (*clause)[i] = properLiterals[i].first;
     if (properLiterals[i].second) {
-      clause->makeFunctionDefinition((*clause)[i],
-        (*clause)[i]->isOrientedReversed());
+      ASS_EQ(fi, gc->size());
+      fi = i;
     }
   }
 
-  properLiterals.reset();
-
-  if (clause->containsFunctionDefinition()) {
+  if (fi != gc->size()) {
+    bool reversed = (*clause)[fi]->isOrientedReversed();
     for (unsigned i = 0; i < clause->size();) {
+      if (i == fi) {
+        i++;
+        continue;
+      }
       auto lit = (*clause)[i];
       Clause* temp = nullptr;
       if (lit->isEquality() && lit->isNegative()) {
@@ -1617,11 +1627,19 @@ Clause* NewCNF::toClause(SPGenClause gc)
       }
       if (temp) {
         clause = temp;
+        if (i < fi) {
+          fi--;
+        }
+        reversed = reversed ^ (*clause)[fi]->isOrientedReversed();
       } else {
         i++;
       }
     }
+    env.signature->getFnDefHandler()->handleClause(clause, fi, reversed);
+    fndef = (*clause)[fi]->isEquality();
   }
+
+  properLiterals.reset();
 
   return clause;
 }

@@ -209,7 +209,7 @@ private:
 
   void toClauses(SPGenClause gc, Stack<Clause*>& output);
   bool mapSubstitution(List<GenLit>* gc, Substitution subst, bool onlyFormulaLevel, List<GenLit>* &output);
-  Clause* toClause(SPGenClause gc);
+  Clause* toClause(SPGenClause gc, bool& fndef);
 
   typedef list<SPGenClause,STLAllocator<SPGenClause>> GenClauses;
 

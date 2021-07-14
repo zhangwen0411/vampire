@@ -173,6 +173,20 @@ bool InductionHelper::isStructInductionOn() {
   return structInd;
 }
 
+bool InductionHelper::isStructInductionOneOn() {
+  CALL("InductionHelper::isStructInductionOneOn");
+  static bool structInd = env.options->structInduction() == Options::StructuralInductionKind::ALL ||
+                          env.options->structInduction() == Options::StructuralInductionKind::ONE;
+  return structInd;
+}
+
+bool InductionHelper::isStructInductionRecDefOn() {
+  CALL("InductionHelper::isStructInductionRecDefOn");
+  static bool structInd = env.options->structInduction() == Options::StructuralInductionKind::ALL ||
+                          env.options->structInduction() == Options::StructuralInductionKind::REC_DEF;
+  return structInd;
+}
+
 bool InductionHelper::isInductionClause(Clause* c) {
   CALL("InductionHelper::isInductionClause");
   static Options::InductionChoice kind = env.options->inductionChoice();
@@ -192,8 +206,43 @@ bool InductionHelper::isInductionLiteral(Literal* l) {
   static bool negOnly = env.options->inductionNegOnly();
   return ((!negOnly || l->isNegative() || 
            (theory->isInterpretedPredicate(l) && theory->isInequality(theory->interpretPredicate(l)))
-          ) && l->ground()
+          )// && l->ground()
          );
+}
+
+bool InductionHelper::isInductionLiteral(Literal* l, Clause* cl) {
+  CALL("InductionHelper::isInductionLiteral");
+  if (!l->ground()) {
+    return false;
+  }
+  auto info = cl->inference().inductionInfo();
+  if (info) {
+    auto it = info->iterator();
+    while (it.hasNext()) {
+      TermList t(Term::create(it.next(), 0, nullptr));
+      if (l->containsSubterm(t)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+vset<unsigned> InductionHelper::collectSkolems(Literal* l, Clause* cl) {
+  CALL("InductionHelper::collectSkolems");
+  auto info = cl->inference().inductionInfo();
+  vset<unsigned> res;
+  if (info) {
+    auto it = info->iterator();
+    while (it.hasNext()) {
+      auto fn = it.next();
+      TermList t(Term::create(fn, 0, nullptr));
+      if (l->containsSubterm(t)) {
+        res.insert(fn);
+      }
+    }
+  }
+  return res;
 }
 
 bool InductionHelper::isInductionTermFunctor(unsigned f) {

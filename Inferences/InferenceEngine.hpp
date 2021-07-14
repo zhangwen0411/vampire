@@ -30,8 +30,6 @@
 #include "Kernel/Inference.hpp"
 #include "Lib/Coproduct.hpp"
 
-#include "Kernel/Clause.hpp"
-
 namespace Inferences
 {
 
@@ -102,9 +100,6 @@ class SimplifyingGeneratingInference
 : public InferenceEngine
 {
 public:
-  virtual bool canGenerateFromClause(Clause* cl) {
-    return !cl->containsFunctionDefinition();
-  }
 
   /** result of applying the inference */
   struct ClauseGenerationResult {
@@ -391,9 +386,6 @@ public:
   CompositeGIE() : _inners(0) {}
   virtual ~CompositeGIE();
   void addFront(GeneratingInferenceEngine* fse);
-  bool canGenerateFromClause(Clause* cl) override {
-    return true;
-  }
   ClauseIterator generateClauses(Clause* premise) override;
   void attach(SaturationAlgorithm* salg) override;
   void detach() override;

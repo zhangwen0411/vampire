@@ -380,7 +380,7 @@ void InductionClauseIterator::processLiteral(Clause* premise, Literal* lit)
             }
           } while (generalize && (ilit = subsetReplacement.transformSubset(rule)));
         }
-      }
+      } 
    }
 }
 

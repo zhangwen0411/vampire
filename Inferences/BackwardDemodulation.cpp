@@ -209,24 +209,12 @@ struct BackwardDemodulation::ResultFn
     Clause* res = new(cLen) Clause(cLen, SimplifyingInference2(InferenceRule::BACKWARD_DEMODULATION, qr.clause, _cl));
 
     (*res)[0]=resLit;
-    vset<unsigned> sig;
-    bool hyp, rev;
-    if (qr.clause->isInductionLiteral(qr.literal, sig, hyp, rev)) {
-      for (const auto& s : sig) {
-        res->markInductionLiteral(s, resLit, hyp, rev ^ resLit->isOrientedReversed());
-      }
-    }
 
     unsigned next=1;
     for(unsigned i=0;i<cLen;i++) {
       Literal* curr=(*qr.clause)[i];
       if(curr!=qr.literal) {
         (*res)[next++] = curr;
-        if (qr.clause->isInductionLiteral(curr, sig, hyp, rev)) {
-          for (const auto& s : sig) {
-            res->markInductionLiteral(s, curr, hyp, rev);
-          }
-        }
       }
     }
     ASS_EQ(next,cLen);

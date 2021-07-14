@@ -399,10 +399,6 @@ namespace Indexing
   {
     CALL("AcyclicityIndex::handleClause");
 
-    if (c->containsFunctionDefinition()) {
-      return;
-    }
-
     ArrayishObjectIterator<Clause> it = c->getSelectedLiteralIterator();
     while (it.hasNext()) {
       if (adding) {
