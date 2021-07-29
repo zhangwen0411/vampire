@@ -656,7 +656,6 @@ void IntegerInductionSchemeGenerator::generate(
     ASS(ts.isTerm());
     unsigned f = ts.term()->functor();
     if (Inferences::InductionHelper::isInductionTermFunctor(f) &&
-        Inferences::InductionHelper::isIntInductionOneOn() &&
         env.signature->getFunction(f)->fnType()->result() == Term::intSort() &&
         !theory->isInterpretedConstant(f)) {
       int_terms.insert(ts.term());
@@ -738,6 +737,152 @@ InductionScheme IntegerInductionSchemeGenerator::generateInteger(Term* term)
   Substitution step_dec;
   step_dec.bind(0, x_var);
   scheme.addCase(std::move(recursiveCallsDec), std::move(step_dec));
+
+  scheme.finalize();
+  return scheme;
+}
+
+void IntegerIntervalInductionSchemeGenerator::generate(
+  const SLQueryResult& main,
+  const vset<pair<Literal*,Clause*>>& side,
+  vvector<pair<InductionScheme, OccurrenceMap>>& res)
+{
+  CALL("IntegerIntervalInductionSchemeGenerator::generate");
+
+  vvector<InductionScheme> schemes;
+  OccurrenceMap occMap;
+
+  vmap<Term*, pair<vset<Term*>,vset<Term*>>> int_terms;
+  SubtermIterator it(main.literal);
+  while (it.hasNext()) {
+    TermList ts = it.next();
+    ASS(ts.isTerm());
+    unsigned f = ts.term()->functor();
+    if (Inferences::InductionHelper::isInductionTermFunctor(f) &&
+        env.signature->getFunction(f)->fnType()->result() == Term::intSort() &&
+        !theory->isInterpretedConstant(f)) {
+      int_terms.insert(make_pair(ts.term(), make_pair(vset<Term*>(), vset<Term*>())));
+    }
+
+    auto p = make_pair(main.literal, ts.term());
+    auto oIt = occMap.find(p);
+    if (oIt == occMap.end()) {
+      occMap.insert(make_pair(p, Occurrences(false)));
+    } else {
+      oIt->second.add(false);
+    }
+  }
+
+  for (const auto& qr : side) {
+    if (Inferences::InductionHelper::isIntegerComparisonLiteral(qr.first)) {
+      for (unsigned i = 0; i <= 1; i++) {
+        TermList side = *qr.first->nthArgument(i);
+        auto it = int_terms.find(side.term());
+        if (it != int_terms.end()) {
+          TermList other = *qr.first->nthArgument(i ^ 1);
+          if (other != side) {
+            if (qr.first->polarity() == i) {
+              it->second.first.insert(other.term());
+            } else {
+              it->second.second.insert(other.term());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (const auto& kv : int_terms) {
+    if (!kv.second.first.empty() && !kv.second.second.empty()) {
+      for (const auto& lb : kv.second.first) {
+        for (const auto& ub : kv.second.second) {
+          schemes.push_back(generateInteger(kv.first, lb, ub));
+        }
+      }
+    } else if (!kv.second.first.empty()) {
+      for (const auto& lb : kv.second.first) {
+        schemes.push_back(generateInteger(kv.first, lb, nullptr));
+      }
+    } else if (!kv.second.second.empty()) {
+      for (const auto& ub : kv.second.second) {
+        schemes.push_back(generateInteger(kv.first, nullptr, ub));
+      }
+    }
+  }
+
+  for (const auto& qr : side) {
+    SubtermIterator it(qr.first);
+    while (it.hasNext()) {
+      TermList ts = it.next();
+      auto p = make_pair(qr.first, ts.term());
+      auto oIt = occMap.find(p);
+      if (oIt == occMap.end()) {
+        occMap.insert(make_pair(p, Occurrences(false)));
+      } else {
+        oIt->second.add(false);
+      }
+    }
+  }
+
+  for (auto& o : occMap) {
+    o.second.finalize();
+  }
+
+  for (const auto& sch : schemes) {
+    OccurrenceMap necessary;
+    for (const auto& kv : occMap) {
+      if (sch.inductionTerms().count(kv.first.second)) {
+        necessary.insert(kv);
+      }
+    }
+    res.push_back(make_pair(sch, necessary));
+  }
+}
+
+InductionScheme IntegerIntervalInductionSchemeGenerator::generateInteger(Term* term, Term* lowerBound, Term* upperBound)
+{
+  CALL("IntegerIntervalInductionSchemeGenerator::generateInteger");
+
+  ASS(lowerBound || upperBound);
+
+  unsigned var = 1;
+  vmap<Term*, unsigned> inductionTerms;
+  inductionTerms.insert(make_pair(term, 0));
+  InductionScheme scheme(inductionTerms, true);
+
+  // base case
+  if (lowerBound) {
+    Substitution base;
+    base.bind(0, TermList(lowerBound));
+    vvector<Substitution> empty;
+    scheme.addCase(std::move(empty), std::move(base));
+  }
+  if (upperBound) {
+    Substitution base;
+    base.bind(0, TermList(upperBound));
+    vvector<Substitution> empty;
+    scheme.addCase(std::move(empty), std::move(base));
+  }
+
+  TermList one(theory->representConstant(IntegerConstantType(1)));
+  TermList x_var(0, false);
+  TermList xPlusOne(Term::create2(env.signature->getInterpretingSymbol(Theory::INT_PLUS), x_var, one));
+
+  if (lowerBound) {
+    // step case increasing
+    vvector<Substitution> recursiveCallsInc(1);
+    recursiveCallsInc.back().bind(0, x_var);
+    Substitution step_inc;
+    step_inc.bind(0, xPlusOne);
+    scheme.addCase(std::move(recursiveCallsInc), std::move(step_inc));
+  } else {
+    // step case decreasing
+    vvector<Substitution> recursiveCallsDec(1);
+    recursiveCallsDec.back().bind(0, xPlusOne);
+    Substitution step_dec;
+    step_dec.bind(0, x_var);
+    scheme.addCase(std::move(recursiveCallsDec), std::move(step_dec));
+  }
 
   scheme.finalize();
   return scheme;

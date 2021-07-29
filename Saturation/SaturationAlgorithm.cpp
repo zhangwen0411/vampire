@@ -1514,6 +1514,9 @@ SaturationAlgorithm* SaturationAlgorithm::createFromOptions(Problem& prb, const 
     if (InductionHelper::isIntInductionOneOn()) {
       generators.push_back(new IntegerInductionSchemeGenerator());
     }
+    if (InductionHelper::isIntInductionTwoOn()) {
+      generators.push_back(new IntegerIntervalInductionSchemeGenerator());
+    }
     if (InductionHelper::isStructInductionOneOn()) {
       generators.push_back(new StructuralInductionSchemeGenerator());
     }

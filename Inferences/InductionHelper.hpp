@@ -47,6 +47,7 @@ public:
   void callSplitterOnNewClause(Clause* c);
 
   static bool isIntegerComparison(Clause* c);
+  static bool isIntegerComparisonLiteral(Literal* lit);
   static bool isIntInductionOn();
   static bool isIntInductionOneOn();
   static bool isIntInductionTwoOn();

@@ -454,6 +454,9 @@ vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> GeneralInduction::sel
     }
   }
 
+  // TODO: we shouldn't exclude this condition and the literal being a side literal
+  // and there are some bad cases that should be excluded in both cases (e.g. literal
+  // is non-ground) which is not checked in else
   if (InductionHelper::isInductionLiteral(literal))
   {
     res.emplace_back(SLQueryResult(literal, premise), vset<pair<Literal*,Clause*>>());
