@@ -65,6 +65,7 @@ TermList TermOccurrenceReplacement::transformSubterm(TermList trm)
   if (rIt != _r.end()) {
     auto oIt = _o._m.find(make_pair(_lit, trm.term()));
     ASS(oIt != _o._m.end());
+    // if current bit is one, replace
     if (oIt->second.pop_last()) {
       return TermList(rIt->second, false);
     }
@@ -80,6 +81,8 @@ TermList TermMapReplacement::transformSubterm(TermList trm)
   auto t = trm.term();
   auto rIt = _r.find(t);
   if (rIt != _r.end()) {
+    // if term needs to be replaced, get its sort and map it
+    // to the next replacement term within that sort
     TermList srt = env.signature->getFunction(t->functor())->fnType()->result();
     auto oIt = _ord.find(t);
     if (oIt == _ord.end()) {
@@ -131,8 +134,10 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
       vvector<pair<Literal*, vset<Literal*>>> schLits;
       for (const auto& kv : schOccMap) {
         // Retain side literals for further processing if:
-        // (1) they contain some induction term
+        // (1) they contain some induction term from the current scheme
         // (2) they have either induction depth 0 or they contain some complex induction term
+        //     (this has been partly checked in selectMainSidePairs but there we did not know
+        //      yet whether there is a complex induction term)
         vset<pair<Literal*, Clause*>> sidesFiltered;
         for (const auto& s : sides) {
           for (const auto& kv2 : kv.first.inductionTerms()) {
@@ -142,6 +147,9 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
             }
           }
         }
+        // Check whether we done this induction before. Since there can
+        // be other induction schemes and literals that produce the same,
+        // we add the new ones at the end
         schLits.emplace_back(nullptr, vset<Literal*>());
         if (alreadyDone(literal, sidesFiltered, kv.first, schLits.back())) {
           continue;
@@ -156,14 +164,16 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
         }
         while (g->hasNext()) {
           auto eg = g->next();
+          // create the generalized literals by replacing the current
+          // set of occurrences of induction terms by the variables
           TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, main.literal);
           auto mainLitGen = tr.transformLit();
-          ASS_NEQ(mainLitGen, main.literal);
+          ASS_NEQ(mainLitGen, main.literal); // main literal should be inducted on
           vvector<pair<Literal*, SLQueryResult>> sidesGeneralized;
           for (const auto& kv2 : sidesFiltered) {
             TermOccurrenceReplacement tr(kv.first.inductionTerms(), eg, kv2.first);
             auto sideLitGen = tr.transformLit();
-            if (sideLitGen != kv2.first) {
+            if (sideLitGen != kv2.first) { // side literals may be discarded if they contain no induction term occurrence
               sidesGeneralized.push_back(make_pair(sideLitGen, SLQueryResult(kv2.first, kv2.second)));
             }
           }
@@ -171,6 +181,8 @@ void GeneralInduction::process(InductionClauseIterator& res, Clause* premise, Li
         }
       }
       for (const auto& schLit : schLits) {
+        // if the pattern is already contained but we have a superset of its
+        // side literals, we add the superset to cover as many as possible
         if (!_done.insert(schLit.first, schLit.second)) {
           auto curr = _done.get(schLit.first);
           if (includes(schLit.second.begin(), schLit.second.end(), curr.begin(), curr.end())) {
@@ -226,6 +238,24 @@ void GeneralInduction::generateClauses(
 
   vvector<LiteralStack> lits(1);
   vmap<Literal*, vset<unsigned>> litToSkolemsMap;
+
+  /**
+   * We manually create the induction clauses -- this is to be able
+   * to match induction hypotheses with their conclusions. We identify these
+   * with the unique Skolems that are introduced in that case.
+   * 
+   * All cases create sets of literals {L11, ..., L1n1}, ..., {Ln1, ..., Lnnn}
+   * which are just the input literals where each variable is replaced with the
+   * Skolemized version of the term it is mapped to in that case.
+   * 
+   * The only case when such a set contains more than one literal is when
+   * a "hypothesis" main literal is created, to which all "hypothesis" side literals
+   * are added.
+   * 
+   * In the end, the cross product of the literal sets for each case are created,
+   * resulting in the clausification of the antecedent of the induction formula,
+   * after which the conclusion literals are also put into place.
+   **/
 
   for (const auto& c : scheme.cases()) {
     vvector<LiteralStack> newLits;
@@ -298,6 +328,9 @@ void GeneralInduction::generateClauses(
     }
   }
 
+  // The main literal that we resolve the induction clauses against first,
+  // instantiates the literals that we want to resolve the side literals with,
+  // we calculate these literals here.
   ClauseStack::Iterator cit(temp);
   RobSubstitution subst;
   if (!subst.match(TermList(mainLit), 0, TermList(mainQuery.literal), 1)) {
@@ -327,6 +360,8 @@ void GeneralInduction::generateClauses(
       }
     }
   }
+
+  // Resolve all induction clauses with the main and side literals
   while(cit.hasNext()){
     Clause* c = cit.next();
     auto qr = mainQuery;
@@ -381,12 +416,16 @@ InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Cas
 {
   Substitution subst, step;
   TermList t;
+  // first Skolemize all induction terms and create step
   for (const auto& kv : inductionTerms) {
     if (c._step.findBinding(kv.second, t)) {
       auto sort = SortHelper::getResultSort(kv.first);
       step.bind(kv.second, mapVarsToSkolems(subst, t, sort, introducedSkolems));
     }
   }
+  // create recursive calls (i.e. hypotheses)
+  // if there is a variable not yet Skolemized, it remains a universally
+  // quantified variable in the hypotheses, which is fine
   vvector<Substitution> recursiveCalls;
   for (const auto& recCall : c._recursiveCalls) {
     recursiveCalls.emplace_back();
@@ -403,6 +442,7 @@ InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Cas
 void reserveBlanksForScheme(const InductionScheme& sch, DHMap<TermList, vvector<Term*>>& blanks)
 {
   vmap<TermList, unsigned> srts;
+  // count sorts in induction terms
   for (const auto& kv : sch.inductionTerms()) {
     TermList srt = env.signature->getFunction(kv.first->functor())->fnType()->result();
     auto res = srts.insert(make_pair(srt,1));
@@ -410,6 +450,7 @@ void reserveBlanksForScheme(const InductionScheme& sch, DHMap<TermList, vvector<
       res.first->second++;
     }
   }
+  // introduce as many blanks for each sort as needed
   for (const auto kv : srts) {
     if (!blanks.find(kv.first)) {
       blanks.insert(kv.first, vvector<Term*>());
@@ -429,12 +470,23 @@ bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Cl
 {
   CALL("GeneralInduction::alreadyDone");
 
+  // Instead of relying on the order within the induction term set, we map induction terms
+  // to blanks based on their first occurrences within the literal to avoid creating different
+  // blanks for the same literal pattern. E.g. if we have a saved pattern leq(blank0,blank1)
+  // and a new literal leq(sk1,sk0) should be inducted upon with induction terms { sk0, sk1 },
+  // instead of using the order within the set to get the different leq(blank1,blank0) essentially
+  // for the same pattern, since sk1 is the first within the literal, we map this to
+  // leq(blank0,blank1) and we detect that it was already inducted upon in this form
+
+  // introduce the blanks
   static DHMap<TermList, vvector<Term*>> blanks;
   reserveBlanksForScheme(sch, blanks);
 
+  // place the blanks in main literal
   TermMapReplacement cr(blanks, sch.inductionTerms());
   res.first = cr.transform(mainLit);
 
+  // place the blanks in sides (using the now fixed order from main literal)
   for (const auto& kv : sides) {
     res.second.insert(cr.transform(kv.first));
   }
@@ -447,10 +499,12 @@ bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Cl
       return false;
     }
   }
+  // check already existing pattern for main literal
   if (!_done.find(res.first)) {
     return false;
   }
   auto s = _done.get(res.first);
+  // check if the sides for the new pattern are included in the existing one
   if (includes(s.begin(), s.end(), res.second.begin(), res.second.end())) {
     if (env.options->showInduction()) {
       env.beginOutput();
@@ -466,10 +520,12 @@ inline bool sideLitCondition(Literal* main, Clause* mainCl, Literal* side, Claus
   auto mainSk = InductionHelper::collectSkolems(main, mainCl);
   auto sideSk = InductionHelper::collectSkolems(side, sideCl);
   return side->ground() && main != side && mainCl != sideCl &&
+    // either they are both induction depth 0 (not yet inducted on)
     ((!mainCl->inference().inductionDepth() && !sideCl->inference().inductionDepth()) ||
+    // or they are hypothesis and conclusion from the same step and predicates
     (InductionHelper::isInductionLiteral(side, sideCl) &&
       InductionHelper::isInductionLiteral(main, mainCl) &&
-      includes(mainSk.begin(), mainSk.end(), sideSk.begin(), sideSk.end()) && !main->isEquality()));
+      includes(mainSk.begin(), mainSk.end(), sideSk.begin(), sideSk.end()) && !side->isEquality() && !main->isEquality()));
 }
 
 vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> GeneralInduction::selectMainSidePairs(Literal* literal, Clause* premise)
@@ -477,38 +533,41 @@ vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> GeneralInduction::sel
   vvector<pair<SLQueryResult, vset<pair<Literal*,Clause*>>>> res;
   static const bool indmc = env.options->inductionMultiClause();
 
-  TermQueryResultIterator it = TermQueryResultIterator::getEmpty();
+  // TODO(mhajdu): is there a way to duplicate these iterators?
+  TermQueryResultIterator itSides = TermQueryResultIterator::getEmpty();
+  TermQueryResultIterator itMains = TermQueryResultIterator::getEmpty();
   if (indmc) {
     SubtermIterator stit(literal);
     while (stit.hasNext()) {
       auto st = stit.next();
       if (st.isTerm() && skolem(st.term())) {
-        it = pvi(getConcatenatedIterator(it, _index->getGeneralizations(st)));
+        itSides = pvi(getConcatenatedIterator(itSides, _index->getGeneralizations(st)));
+        itMains = pvi(getConcatenatedIterator(itMains, _index->getGeneralizations(st)));
       }
     }
   }
 
-  // TODO: we shouldn't exclude this condition and the literal being a side literal
-  // and there are some bad cases that should be excluded in both cases (e.g. literal
-  // is non-ground) which is not checked in else
+  // pair current literal as main literal with possible side literals
+  // this results in any number of side literals
   if (InductionHelper::isInductionLiteral(literal))
   {
     res.emplace_back(SLQueryResult(literal, premise), vset<pair<Literal*,Clause*>>());
-    while (it.hasNext()) {
-      auto qr = it.next();
+    while (itSides.hasNext()) {
+      auto qr = itSides.next();
       if (InductionHelper::isInductionClause(qr.clause) && sideLitCondition(literal, premise, qr.literal, qr.clause)) {
         res.back().second.emplace(qr.literal, qr.clause);
       }
     }
-  } else {
-    while (it.hasNext()) {
-      auto qr = it.next();
-      if (InductionHelper::isInductionClause(qr.clause) &&
-          InductionHelper::isInductionLiteral(qr.literal) &&
-          sideLitCondition(qr.literal, qr.clause, literal, premise)) {
-        res.emplace_back(SLQueryResult(qr.literal, qr.clause), vset<pair<Literal*,Clause*>>());
-        res.back().second.emplace(literal, premise);
-      }
+  }
+  // pair current literal as side literal with possible main literals
+  // this results in only one side literal (the current)
+  while (itMains.hasNext()) {
+    auto qr = itMains.next();
+    if (InductionHelper::isInductionClause(qr.clause) &&
+        InductionHelper::isInductionLiteral(qr.literal) &&
+        sideLitCondition(qr.literal, qr.clause, literal, premise)) {
+      res.emplace_back(SLQueryResult(qr.literal, qr.clause), vset<pair<Literal*,Clause*>>());
+      res.back().second.emplace(literal, premise);
     }
   }
   return res;

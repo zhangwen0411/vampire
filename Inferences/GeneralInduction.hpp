@@ -156,7 +156,7 @@ private:
 };
 
 /**
- * Replaces a subset of occurrences for given TermLists
+ * Replaces occurrences of terms with variables to get a generalized literal
  */
 class TermOccurrenceReplacement : public TermTransformer {
 public:
@@ -167,13 +167,14 @@ public:
   TermList transformSubterm(TermList trm) override;
 
 private:
-  const vmap<Term*, unsigned>& _r;
+  const vmap<Term*, unsigned>& _r; // term to replace -> variable mapping
   OccurrenceMap _o;
   Literal* _lit;
 };
 
 /**
- * Replaces a subset of occurrences for given TermLists
+ * Replaces terms with terms such that the replacement terms within the
+ * same sort occur sorted from left to right within the resulting literal
  */
 class TermMapReplacement : public TermTransformer {
 public:
