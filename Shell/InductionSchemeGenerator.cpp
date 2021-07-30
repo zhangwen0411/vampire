@@ -107,40 +107,6 @@ vvector<TermList> getInductionTerms(TermList t)
   return v;
 }
 
-TermList TermReplacement::transformSubterm(TermList trm)
-{
-  if (trm.isVar()) {
-    return trm;
-  }
-  auto t = trm.term();
-  auto rIt = _r.find(t);
-  if (rIt != _r.end()) {
-    TermList srt = env.signature->getFunction(t->functor())->fnType()->result();
-    auto oIt = _ord.find(t);
-    if (oIt == _ord.end()) {
-      oIt = _ord.insert(make_pair(t, _curr.at(srt)++)).first;
-    }
-    return TermList(_m.get(srt)[oIt->second]);
-  }
-  return trm;
-}
-
-TermList TermOccurrenceReplacement::transformSubterm(TermList trm)
-{
-  if (trm.isVar()) {
-    return trm;
-  }
-  auto rIt = _r.find(trm.term());
-  if (rIt != _r.end()) {
-    auto oIt = _o.find(make_pair(_lit, trm.term()));
-    ASS(oIt != _o.end());
-    if (oIt->second.pop_last()) {
-      return TermList(rIt->second, false);
-    }
-  }
-  return trm;
-}
-
 bool InductionScheme::Case::contains(const InductionScheme::Case& other,
   const vmap<Term*, unsigned>& indTerms1, const vmap<Term*, unsigned>& indTerms2) const
 {
@@ -293,7 +259,7 @@ void RecursionInductionSchemeGenerator::generate(
   CALL("RecursionInductionSchemeGenerator::generate()");
 
   vvector<InductionScheme> schemes;
-  _actOccMaps.clear();
+  _actOccMaps._m.clear();
 
   static vset<Literal*> litsProcessed;
   litsProcessed.clear();
@@ -305,15 +271,13 @@ void RecursionInductionSchemeGenerator::generate(
       generate(s.second, s.first, schemes);
     }
   }
-  for (auto& o : _actOccMaps) {
-    o.second.finalize();
-  }
+  _actOccMaps.finalize();
   // filter out schemes that only contain induction
   // terms not present in the main literal
   schemes.erase(remove_if(schemes.begin(), schemes.end(), [this, &main](const InductionScheme& sch) {
     for (const auto& kv : sch.inductionTerms()) {
-      auto it = _actOccMaps.find(make_pair(main.literal, kv.first));
-      if (it != _actOccMaps.end() && it->second.num_set_bits()) {
+      auto it = _actOccMaps._m.find(make_pair(main.literal, kv.first));
+      if (it != _actOccMaps._m.end() && it->second.num_set_bits()) {
         return false;
       }
     }
@@ -324,13 +288,7 @@ void RecursionInductionSchemeGenerator::generate(
   f.filter(schemes, _actOccMaps);
 
   for (const auto& sch : schemes) {
-    OccurrenceMap necessary;
-    for (const auto& kv : _actOccMaps) {
-      if (sch.inductionTerms().count(kv.first.second)) {
-        necessary.insert(kv);
-      }
-    }
-    res.push_back(make_pair(sch, necessary));
+    res.push_back(make_pair(sch, _actOccMaps.create_necessary(sch)));
   }
 }
 
@@ -466,13 +424,7 @@ void RecursionInductionSchemeGenerator::process(TermList curr, bool active,
 
   // If induction term, store the occurrence
   if (canInductOn(curr)) {
-    auto p = make_pair(lit,t);
-    auto aIt = _actOccMaps.find(p);
-    if (aIt == _actOccMaps.end()) {
-      _actOccMaps.insert(make_pair(p, Occurrences(active)));
-    } else {
-      aIt->second.add(active);
-    }
+    _actOccMaps.add(lit, t, active);
   }
 
   unsigned f = t->functor();
@@ -551,20 +503,13 @@ void StructuralInductionSchemeGenerator::generate(
   while (it.hasNext()) {
     TermList ts = it.next();
     ASS(ts.isTerm());
-    unsigned f = ts.term()->functor();
+    Term* t = ts.term();
+    unsigned f = t->functor();
     if (Inferences::InductionHelper::isInductionTermFunctor(f) &&
-        Inferences::InductionHelper::isStructInductionOn() &&
         Inferences::InductionHelper::isStructInductionFunctor(f)) {
-      ta_terms.insert(ts.term());
+      ta_terms.insert(t);
     }
-
-    auto p = make_pair(main.literal, ts.term());
-    auto oIt = occMap.find(p);
-    if (oIt == occMap.end()) {
-      occMap.insert(make_pair(p, Occurrences(false)));
-    } else {
-      oIt->second.add(false);
-    }
+    occMap.add(main.literal, t, false);
   }
 
   Set<Term*>::Iterator taIt(ta_terms);
@@ -575,29 +520,14 @@ void StructuralInductionSchemeGenerator::generate(
   for (const auto& qr : side) {
     SubtermIterator it(qr.first);
     while (it.hasNext()) {
-      TermList ts = it.next();
-      auto p = make_pair(qr.first, ts.term());
-      auto oIt = occMap.find(p);
-      if (oIt == occMap.end()) {
-        occMap.insert(make_pair(p, Occurrences(false)));
-      } else {
-        oIt->second.add(false);
-      }
+      Term* t = it.next().term();
+      occMap.add(qr.first, t, false);
     }
   }
 
-  for (auto& o : occMap) {
-    o.second.finalize();
-  }
-
+  occMap.finalize();
   for (const auto& sch : schemes) {
-    OccurrenceMap necessary;
-    for (const auto& kv : occMap) {
-      if (sch.inductionTerms().count(kv.first.second)) {
-        necessary.insert(kv);
-      }
-    }
-    res.push_back(make_pair(sch, necessary));
+    res.push_back(make_pair(sch, occMap.create_necessary(sch)));
   }
 }
 
@@ -654,20 +584,14 @@ void IntegerInductionSchemeGenerator::generate(
   while (it.hasNext()) {
     TermList ts = it.next();
     ASS(ts.isTerm());
-    unsigned f = ts.term()->functor();
+    Term* t = ts.term();
+    unsigned f = t->functor();
     if (Inferences::InductionHelper::isInductionTermFunctor(f) &&
         env.signature->getFunction(f)->fnType()->result() == Term::intSort() &&
         !theory->isInterpretedConstant(f)) {
-      int_terms.insert(ts.term());
+      int_terms.insert(t);
     }
-
-    auto p = make_pair(main.literal, ts.term());
-    auto oIt = occMap.find(p);
-    if (oIt == occMap.end()) {
-      occMap.insert(make_pair(p, Occurrences(false)));
-    } else {
-      oIt->second.add(false);
-    }
+    occMap.add(main.literal, t, false);
   }
 
   Set<Term*>::Iterator intIt(int_terms);
@@ -678,29 +602,14 @@ void IntegerInductionSchemeGenerator::generate(
   for (const auto& qr : side) {
     SubtermIterator it(qr.first);
     while (it.hasNext()) {
-      TermList ts = it.next();
-      auto p = make_pair(qr.first, ts.term());
-      auto oIt = occMap.find(p);
-      if (oIt == occMap.end()) {
-        occMap.insert(make_pair(p, Occurrences(false)));
-      } else {
-        oIt->second.add(false);
-      }
+      Term* t = it.next().term();
+      occMap.add(qr.first, t, false);
     }
   }
 
-  for (auto& o : occMap) {
-    o.second.finalize();
-  }
-
+  occMap.finalize();
   for (const auto& sch : schemes) {
-    OccurrenceMap necessary;
-    for (const auto& kv : occMap) {
-      if (sch.inductionTerms().count(kv.first.second)) {
-        necessary.insert(kv);
-      }
-    }
-    res.push_back(make_pair(sch, necessary));
+    res.push_back(make_pair(sch, occMap.create_necessary(sch)));
   }
 }
 
@@ -757,20 +666,14 @@ void IntegerIntervalInductionSchemeGenerator::generate(
   while (it.hasNext()) {
     TermList ts = it.next();
     ASS(ts.isTerm());
-    unsigned f = ts.term()->functor();
+    Term* t = ts.term();
+    unsigned f = t->functor();
     if (Inferences::InductionHelper::isInductionTermFunctor(f) &&
         env.signature->getFunction(f)->fnType()->result() == Term::intSort() &&
         !theory->isInterpretedConstant(f)) {
-      int_terms.insert(make_pair(ts.term(), make_pair(vset<Term*>(), vset<Term*>())));
+      int_terms.insert(make_pair(t, make_pair(vset<Term*>(), vset<Term*>())));
     }
-
-    auto p = make_pair(main.literal, ts.term());
-    auto oIt = occMap.find(p);
-    if (oIt == occMap.end()) {
-      occMap.insert(make_pair(p, Occurrences(false)));
-    } else {
-      oIt->second.add(false);
-    }
+    occMap.add(main.literal, t, false);
   }
 
   for (const auto& qr : side) {
@@ -813,29 +716,14 @@ void IntegerIntervalInductionSchemeGenerator::generate(
   for (const auto& qr : side) {
     SubtermIterator it(qr.first);
     while (it.hasNext()) {
-      TermList ts = it.next();
-      auto p = make_pair(qr.first, ts.term());
-      auto oIt = occMap.find(p);
-      if (oIt == occMap.end()) {
-        occMap.insert(make_pair(p, Occurrences(false)));
-      } else {
-        oIt->second.add(false);
-      }
+      Term* t = it.next().term();
+      occMap.add(qr.first, t, false);
     }
   }
 
-  for (auto& o : occMap) {
-    o.second.finalize();
-  }
-
+  occMap.finalize();
   for (const auto& sch : schemes) {
-    OccurrenceMap necessary;
-    for (const auto& kv : occMap) {
-      if (sch.inductionTerms().count(kv.first.second)) {
-        necessary.insert(kv);
-      }
-    }
-    res.push_back(make_pair(sch, necessary));
+    res.push_back(make_pair(sch, occMap.create_necessary(sch)));
   }
 }
 
@@ -845,7 +733,6 @@ InductionScheme IntegerIntervalInductionSchemeGenerator::generateInteger(Term* t
 
   ASS(lowerBound || upperBound);
 
-  unsigned var = 1;
   vmap<Term*, unsigned> inductionTerms;
   inductionTerms.insert(make_pair(term, 0));
   InductionScheme scheme(inductionTerms, true);

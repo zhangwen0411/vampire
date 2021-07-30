@@ -112,48 +112,6 @@ private:
   bool _finished;
 };
 
-using OccurrenceMap = vmap<pair<Literal*, Term*>, Occurrences>;
-
-/**
- * Replaces a subset of occurrences for given TermLists
- */
-class TermReplacement : public TermTransformer {
-public:
-  TermReplacement(const DHMap<TermList, vvector<Term*>>& m, const vmap<Term*, unsigned>& r)
-    : _m(m), _r(r), _ord(), _curr()
-  {
-    auto it = _m.items();
-    while (it.hasNext()) {
-      auto kv = it.next();
-      _curr.insert(make_pair(kv.first, 0));
-    }
-  }
-  TermList transformSubterm(TermList trm) override;
-
-private:
-  const DHMap<TermList, vvector<Term*>>& _m;
-  const vmap<Term*, unsigned>& _r;
-  vmap<Term*, unsigned> _ord;
-  vmap<TermList, unsigned> _curr;
-};
-
-/**
- * Replaces a subset of occurrences for given TermLists
- */
-class TermOccurrenceReplacement : public TermTransformer {
-public:
-  TermOccurrenceReplacement(const vmap<Term*, unsigned>& r,
-                             const OccurrenceMap& occ, Literal* lit)
-                            : _r(r), _o(occ), _lit(lit) {}
-  Literal* transformLit() { return transform(_lit); }
-  TermList transformSubterm(TermList trm) override;
-
-private:
-  const vmap<Term*, unsigned>& _r;
-  OccurrenceMap _o;
-  Literal* _lit;
-};
-
 /**
  * An instantiated induction template for a term.
  */
@@ -194,6 +152,37 @@ private:
 };
 
 ostream& operator<<(ostream& out, const InductionScheme& scheme);
+
+class OccurrenceMap {
+public:
+  void add(Literal* l, Term* t, bool active) {
+    auto p = make_pair(l, t);
+    auto oIt = _m.find(p);
+    if (oIt == _m.end()) {
+      _m.insert(make_pair(p, Occurrences(active)));
+    } else {
+      oIt->second.add(active);
+    }
+  }
+
+  void finalize() {
+    for (auto& o : _m) {
+      o.second.finalize();
+    }
+  }
+
+  OccurrenceMap create_necessary(const InductionScheme& sch) {
+    OccurrenceMap necessary;
+    for (const auto& kv : _m) {
+      if (sch.inductionTerms().count(kv.first.second)) {
+        necessary._m.insert(kv);
+      }
+    }
+    return necessary;
+  }
+
+  vmap<pair<Literal*, Term*>, Occurrences> _m;
+};
 
 /**
  * This class instantiates the induction templates from a literal

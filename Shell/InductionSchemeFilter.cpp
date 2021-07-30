@@ -203,7 +203,7 @@ void InductionSchemeFilter::filterComplex(vvector<InductionScheme>& schemes, con
         continue;
       }
       unsigned occ = 0;
-      for (const auto& kv2 : occMap) {
+      for (const auto& kv2 : occMap._m) {
         if (kv2.first.second == kv.first) {
           occ += kv2.second.num_bits();
         }

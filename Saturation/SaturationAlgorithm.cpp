@@ -1511,17 +1511,21 @@ SaturationAlgorithm* SaturationAlgorithm::createFromOptions(Problem& prb, const 
   if(opt.induction()!=Options::Induction::NONE){
     // gie->addFront(new Induction());
     vvector<InductionSchemeGenerator*> generators;
-    if (InductionHelper::isIntInductionOneOn()) {
-      generators.push_back(new IntegerInductionSchemeGenerator());
+    if (InductionHelper::isIntInductionOn()) {
+      if (InductionHelper::isIntInductionOneOn()) {
+        generators.push_back(new IntegerInductionSchemeGenerator());
+      }
+      if (InductionHelper::isIntInductionTwoOn()) {
+        generators.push_back(new IntegerIntervalInductionSchemeGenerator());
+      }
     }
-    if (InductionHelper::isIntInductionTwoOn()) {
-      generators.push_back(new IntegerIntervalInductionSchemeGenerator());
-    }
-    if (InductionHelper::isStructInductionOneOn()) {
-      generators.push_back(new StructuralInductionSchemeGenerator());
-    }
-    if (InductionHelper::isStructInductionRecDefOn()) {
-      generators.push_back(new RecursionInductionSchemeGenerator());
+    if (InductionHelper::isStructInductionOn()) {
+      if (InductionHelper::isStructInductionOneOn()) {
+        generators.push_back(new StructuralInductionSchemeGenerator());
+      }
+      if (InductionHelper::isStructInductionRecDefOn()) {
+        generators.push_back(new RecursionInductionSchemeGenerator());
+      }
     }
     res->_induction = new GeneralInduction(generators, InferenceRule::INDUCTION_AXIOM);
     gie->addFront(res->_induction);

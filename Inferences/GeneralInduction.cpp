@@ -56,6 +56,40 @@ using namespace Kernel;
 using namespace Lib;
 using namespace Shell;
 
+TermList TermOccurrenceReplacement::transformSubterm(TermList trm)
+{
+  if (trm.isVar()) {
+    return trm;
+  }
+  auto rIt = _r.find(trm.term());
+  if (rIt != _r.end()) {
+    auto oIt = _o._m.find(make_pair(_lit, trm.term()));
+    ASS(oIt != _o._m.end());
+    if (oIt->second.pop_last()) {
+      return TermList(rIt->second, false);
+    }
+  }
+  return trm;
+}
+
+TermList TermMapReplacement::transformSubterm(TermList trm)
+{
+  if (trm.isVar()) {
+    return trm;
+  }
+  auto t = trm.term();
+  auto rIt = _r.find(t);
+  if (rIt != _r.end()) {
+    TermList srt = env.signature->getFunction(t->functor())->fnType()->result();
+    auto oIt = _ord.find(t);
+    if (oIt == _ord.end()) {
+      oIt = _ord.insert(make_pair(t, _curr.at(srt)++)).first;
+    }
+    return TermList(_m.get(srt)[oIt->second]);
+  }
+  return trm;
+}
+
 ClauseIterator GeneralInduction::generateClauses(Clause* premise)
 {
   CALL("GeneralInduction::generateClauses");
@@ -398,7 +432,7 @@ bool GeneralInduction::alreadyDone(Literal* mainLit, const vset<pair<Literal*,Cl
   static DHMap<TermList, vvector<Term*>> blanks;
   reserveBlanksForScheme(sch, blanks);
 
-  TermReplacement cr(blanks, sch.inductionTerms());
+  TermMapReplacement cr(blanks, sch.inductionTerms());
   res.first = cr.transform(mainLit);
 
   for (const auto& kv : sides) {

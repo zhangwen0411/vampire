@@ -58,8 +58,8 @@ public:
     CALL("NoGeneralizationIterator::next()");
     ASS(_hasNext);
 
-    auto it = _occ.begin();
-    while (it != _occ.end()) {
+    auto it = _occ._m.begin();
+    while (it != _occ._m.end()) {
       it->second.set_bits();
       it++;
     }
@@ -70,7 +70,7 @@ public:
   inline vstring toString()
   {
     vstringstream str;
-    for (const auto& kv : _occ) {
+    for (const auto& kv : _occ._m) {
       str << *kv.first.first << ", " << kv.first.second
           << ": " << kv.second.toString() << " ";
     }
@@ -93,7 +93,7 @@ public:
   {
     if (!_hasFixOccurrences) {
       // eliminate all 0s
-      for (auto& o : _occ) {
+      for (auto& o : _occ._m) {
         if (!o.second.num_set_bits()) {
           ALWAYS(o.second.next());
         }
@@ -112,8 +112,8 @@ public:
     ASS(_hasNext);
 
     auto temp = _occ;
-    auto it = _occ.begin();
-    while (it != _occ.end()) {
+    auto it = _occ._m.begin();
+    while (it != _occ._m.end()) {
       if (it->second.next()) {
         // heuristic gives only active occurrences
         // then and all occurrences, so we set all bits
@@ -132,7 +132,7 @@ public:
       }
       it++;
     }
-    if (it == _occ.end()) {
+    if (it == _occ._m.end()) {
       _hasNext = false;
     }
     return temp;
@@ -141,7 +141,7 @@ public:
   inline vstring toString()
   {
     vstringstream str;
-    for (const auto& kv : _occ) {
+    for (const auto& kv : _occ._m) {
       str << *kv.first.first << ", " << kv.first.second
           << ": " << kv.second.toString() << " ";
     }
@@ -153,6 +153,46 @@ private:
   bool _hasNext;
   bool _heuristic;
   bool _hasFixOccurrences;
+};
+
+/**
+ * Replaces a subset of occurrences for given TermLists
+ */
+class TermOccurrenceReplacement : public TermTransformer {
+public:
+  TermOccurrenceReplacement(const vmap<Term*, unsigned>& r,
+                             const OccurrenceMap& occ, Literal* lit)
+                            : _r(r), _o(occ), _lit(lit) {}
+  Literal* transformLit() { return transform(_lit); }
+  TermList transformSubterm(TermList trm) override;
+
+private:
+  const vmap<Term*, unsigned>& _r;
+  OccurrenceMap _o;
+  Literal* _lit;
+};
+
+/**
+ * Replaces a subset of occurrences for given TermLists
+ */
+class TermMapReplacement : public TermTransformer {
+public:
+  TermMapReplacement(const DHMap<TermList, vvector<Term*>>& m, const vmap<Term*, unsigned>& r)
+    : _m(m), _r(r), _ord(), _curr()
+  {
+    auto it = _m.items();
+    while (it.hasNext()) {
+      auto kv = it.next();
+      _curr.insert(make_pair(kv.first, 0));
+    }
+  }
+  TermList transformSubterm(TermList trm) override;
+
+private:
+  const DHMap<TermList, vvector<Term*>>& _m;
+  const vmap<Term*, unsigned>& _r;
+  vmap<Term*, unsigned> _ord;
+  vmap<TermList, unsigned> _curr;
 };
 
 class GeneralInduction
