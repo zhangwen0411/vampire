@@ -379,6 +379,17 @@ Formula* Skolem::skolemise (Formula* f)
       VList::FIFO vArgs(varArgs);
       Formula* before = SubstHelper::apply(f, _subst);
 
+      static DHSet<vstring> cache;
+      FormulaUnit *copy = new FormulaUnit(before, Inference(FromInput(UnitInputType::AXIOM)));
+      FormulaUnit *rectified = Rectify::rectify(copy);
+      Formula *normalised = rectified->formula();
+      if(!cache.insert(normalised->toString()))
+        std::cout
+          << "DUPE SKOLEM in " << env.options->problemName()
+          << ": " << normalised->toString()
+          << std::endl;
+
+
       ExVarDepInfo& depInfo = _varDeps.get(f);
 
       VarSet* dep = depInfo.univ;
