@@ -112,29 +112,55 @@ FormulaUnit* Skolem::skolemiseImpl (FormulaUnit* unit, bool appify)
 }
 
 unsigned Skolem::addSkolemFunction(unsigned arity, TermList* domainSorts,
-    TermList rangeSort, unsigned var, unsigned taArity)
+    TermList rangeSort, unsigned var, unsigned taArity, Formula *reuse)
 {
-  CALL("Skolem::addSkolemFunction(unsigned,unsigned*,unsigned,unsigned)");
+  CALL("Skolem::addSkolemFunction(unsigned,unsigned*,unsigned,unsigned,Formula*)");
 
+  vstring varName;
+  const char *varNameCStr = nullptr;
   if(VarManager::varNamePreserving()) {
-    vstring varName=VarManager::getVarName(var);
-    return addSkolemFunction(arity, taArity, domainSorts, rangeSort, varName.c_str());
+    varName=VarManager::getVarName(var);
+    varNameCStr=varName.c_str();
   }
-  else {
-    return addSkolemFunction(arity, taArity, domainSorts, rangeSort);
-  }
+  return addSkolemFunction(arity, taArity, domainSorts, rangeSort, varNameCStr, reuse);
 }
 
 unsigned Skolem::addSkolemFunction(unsigned arity, unsigned taArity, TermList* domainSorts,
-    TermList rangeSort, const char* suffix)
+    TermList rangeSort, const char* suffix, Formula *reuse)
 {
-  CALL("Skolem::addSkolemFunction(unsigned,TermList*,TermList,const char*)");
+  CALL("Skolem::addSkolemFunction(unsigned,TermList*,TermList,const char*,Formula*)");
   //ASS(arity==0 || domainSorts!=0);
+
+  // attempt to reuse Skolem symbols for a certain formula
+  // reuse is nullptr if undesirable or not supported yet
+  static DHMap<vstring, unsigned> cache;
+  vstring key;
+  if(reuse) {
+    //std::cout << "skolem for: " << reuse->toString() << std::endl;
+    FormulaUnit *copy = new FormulaUnit(reuse, Inference(FromInput(UnitInputType::AXIOM)));
+    FormulaUnit *rectified = Rectify::rectify(copy);
+    Formula *normalised = rectified->formula();
+    key = normalised->toString();
+    unsigned cached;
+    if(cache.find(key, cached)) {
+      /*
+      std::cout
+          << "reused skolem " << env.signature->getFunction(cached)->name() 
+          << " in " << env.options->problemName()
+          << " for " << key
+          << std::endl;
+      */
+      //return cached;
+    }
+  }
 
   unsigned fun = env.signature->addSkolemFunction(arity, suffix);
   Signature::Symbol* fnSym = env.signature->getFunction(fun);
   OperatorType* ot = OperatorType::getFunctionType(arity - taArity, domainSorts, rangeSort, taArity);
   fnSym->setType(ot);
+  if(reuse)
+    ALWAYS(cache.insert(key, fun));
+
   return fun;
 }
 
@@ -379,16 +405,6 @@ Formula* Skolem::skolemise (Formula* f)
       VList::FIFO vArgs(varArgs);
       Formula* before = SubstHelper::apply(f, _subst);
 
-      static DHSet<vstring> cache;
-      FormulaUnit *copy = new FormulaUnit(before, Inference(FromInput(UnitInputType::AXIOM)));
-      FormulaUnit *rectified = Rectify::rectify(copy);
-      Formula *normalised = rectified->formula();
-      if(!cache.insert(normalised->toString()))
-        std::cout
-          << "DUPE SKOLEM in " << env.options->problemName()
-          << ": " << normalised->toString()
-          << std::endl;
-
 
       ExVarDepInfo& depInfo = _varDeps.get(f);
 
@@ -441,6 +457,8 @@ Formula* Skolem::skolemise (Formula* f)
       SortHelper::normaliseArgSorts(typeVars, termVarSorts);
 
       VList::Iterator vs(f->vars());
+      VList *remainingVars = f->vars();
+      Formula *reuse = before;
       while (vs.hasNext()) {
         unsigned v = vs.next();
         TermList rangeSort=_varSorts.get(v, Term::defaultSort());
@@ -457,7 +475,7 @@ Formula* Skolem::skolemise (Formula* f)
         if(!_appify){
           //Not the higher-order case. Create the term
           //sk(typevars, termvars).
-          unsigned fun = addSkolemFunction(arity, termVarSorts.begin(), rangeSort, v, typeVars.size());
+          unsigned fun = addSkolemFunction(arity, termVarSorts.begin(), rangeSort, v, typeVars.size(), reuse);
           _introducedSkolemFuns.push(fun);
           skolemTerm = Term::create(fun, arity, allVars.begin());
         } else {
@@ -473,6 +491,14 @@ Formula* Skolem::skolemise (Formula* f)
         env.statistics->skolemFunctions++;
 
         _subst.bind(v,skolemTerm);
+        remainingVars = remainingVars->tail();
+        if(VList::isNonEmpty(remainingVars))
+          reuse = new QuantifiedFormula(
+            Connective::EXISTS,
+            remainingVars,
+            f->sorts(),
+            SubstHelper::apply(f->qarg(), _subst)
+          );
 
         if (env.options->showSkolemisations()) {
           env.beginOutput();
