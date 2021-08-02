@@ -736,25 +736,17 @@ InductionScheme IntegerIntervalInductionSchemeGenerator::generateInteger(Term* t
   inductionTerms.insert(make_pair(term, 0));
   InductionScheme scheme(inductionTerms, true);
 
-  // base case
-  if (lowerBound) {
-    Substitution base;
-    base.bind(0, TermList(lowerBound));
-    vvector<Substitution> empty;
-    scheme.addCase(std::move(empty), std::move(base));
-  }
-  if (upperBound) {
-    Substitution base;
-    base.bind(0, TermList(upperBound));
-    vvector<Substitution> empty;
-    scheme.addCase(std::move(empty), std::move(base));
-  }
-
   TermList one(theory->representConstant(IntegerConstantType(1)));
   TermList x_var(0, false);
   TermList xPlusOne(Term::create2(env.signature->getInterpretingSymbol(Theory::INT_PLUS), x_var, one));
 
   if (lowerBound) {
+    // base case
+    Substitution base;
+    base.bind(0, TermList(lowerBound));
+    vvector<Substitution> empty;
+    scheme.addCase(std::move(empty), std::move(base));
+
     // step case increasing
     vvector<Substitution> recursiveCallsInc(1);
     recursiveCallsInc.back().bind(0, x_var);
@@ -762,6 +754,12 @@ InductionScheme IntegerIntervalInductionSchemeGenerator::generateInteger(Term* t
     step_inc.bind(0, xPlusOne);
     scheme.addCase(std::move(recursiveCallsInc), std::move(step_inc));
   } else {
+    // base case
+    Substitution base;
+    base.bind(0, TermList(upperBound));
+    vvector<Substitution> empty;
+    scheme.addCase(std::move(empty), std::move(base));
+
     // step case decreasing
     vvector<Substitution> recursiveCallsDec(1);
     recursiveCallsDec.back().bind(0, xPlusOne);
