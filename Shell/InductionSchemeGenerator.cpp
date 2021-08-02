@@ -617,7 +617,6 @@ InductionScheme IntegerInductionSchemeGenerator::generateInteger(Term* term)
 {
   CALL("IntegerInductionSchemeGenerator::generateInteger");
 
-  unsigned var = 1;
   vmap<Term*, unsigned> inductionTerms;
   inductionTerms.insert(make_pair(term, 0));
   InductionScheme scheme(inductionTerms, true);
