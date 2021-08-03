@@ -265,6 +265,7 @@ void GeneralInduction::generateClauses(
   CALL("GeneralInduction::generateClauses");
 
   static const bool indhrw = env.options->inductionHypRewriting();
+  static const bool indmc = env.options->inductionMultiClause();
 
   if (env.options->showInduction()){
     env.beginOutput();
@@ -295,7 +296,7 @@ void GeneralInduction::generateClauses(
       FormulaList::push(f, ll);
       // save all free variables of the hypotheses -- these are used
       // to mark the clauses as hypotheses and corresponding conclusion
-      if (indhrw && mainLit->isEquality()) {
+      if ((indhrw && mainLit->isEquality()) || (indmc && !mainLit->isEquality())) {
         FormulaVarIterator fvit(f);
         while (fvit.hasNext()) {
           hypVars.insert(fvit.next());
@@ -335,7 +336,7 @@ void GeneralInduction::generateClauses(
   auto fu = new FormulaUnit(hypothesis,inf);
   cnf.clausify(NNF::ennf(fu), hyp_clauses);
   DHMap<unsigned,unsigned> rvs;
-  if (indhrw && mainLit->isEquality()) {
+  if ((indhrw && mainLit->isEquality()) || (indmc && !mainLit->isEquality())) {
     // NewCNF creates a mapping from newly introduced Skolem symbols
     // to the variables before Skolemization. We need the reverse of
     // this, but we double check that it is a bijection.
