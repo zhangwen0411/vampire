@@ -1053,6 +1053,7 @@ Term* NewCNF::createSkolemTerm(unsigned var, VarSet* free)
       env.signature->getFunction(fun)->markInGoal();
     }
     if(_forInduction){
+      _skFnToVar.insert(fun, var);
       env.signature->getFunction(fun)->markInductionSkolem();
     }
     res = Term::create(fun, arity, fnArgs.begin());

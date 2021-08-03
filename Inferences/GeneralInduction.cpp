@@ -217,6 +217,42 @@ void GeneralInduction::detach()
   GeneratingInferenceEngine::detach();
 }
 
+Formula* createImplication(Substitution subst, Literal* mainLit, const vvector<pair<Literal*, SLQueryResult>>& sideLitQrPairs, Literal*& mainLitS) {
+  FormulaList* ll = FormulaList::empty();
+  for (const auto& kv : sideLitQrPairs) {
+    FormulaList::push(new AtomicFormula(SubstHelper::apply<Substitution>(kv.first, subst)), ll);
+  }
+  Formula* left = 0;
+  if (FormulaList::isNonEmpty(ll)) {
+    left = JunctionFormula::generalJunction(Connective::AND, ll);
+  }
+  mainLitS = Literal::complementaryLiteral(SubstHelper::apply<Substitution>(mainLit, subst));
+  Formula* right = new AtomicFormula(mainLitS);
+  return left ? new BinaryFormula(Connective::IMP, left, right) : right;
+}
+
+InductionScheme::Case renameCase(const InductionScheme::Case& c, const vmap<Term*, unsigned>& inductionTerms, unsigned& var) {
+  Renaming r(var);
+  TermList t;
+  Substitution step;
+  vvector<Substitution> recCalls;
+  for (const auto& kv : inductionTerms) {
+    if (c._step.findBinding(kv.second, t)) {
+      r.normalizeVariables(t);
+      step.bind(kv.second, r.apply(t));
+    }
+    for (const auto& recCall : c._recursiveCalls) {
+      recCalls.emplace_back();
+      if (recCall.findBinding(kv.second, t)) {
+        r.normalizeVariables(t);
+        recCalls.back().bind(kv.second, r.apply(t));
+      }
+    }
+  }
+  var = r.nextVar();
+  return InductionScheme::Case(std::move(recCalls), std::move(step));
+}
+
 void GeneralInduction::generateClauses(
   const Shell::InductionScheme& scheme,
   Literal* mainLit, const SLQueryResult& mainQuery,
@@ -224,6 +260,8 @@ void GeneralInduction::generateClauses(
   ClauseStack& clauses)
 {
   CALL("GeneralInduction::generateClauses");
+
+  static const bool indhrw = env.options->inductionHypRewriting();
 
   if (env.options->showInduction()){
     env.beginOutput();
@@ -236,119 +274,79 @@ void GeneralInduction::generateClauses(
     env.endOutput();
   }
 
-  vvector<LiteralStack> lits(1);
-  vmap<Literal*, vset<unsigned>> litToSkolemsMap;
-
-  /**
-   * We manually create the induction clauses -- this is to be able
-   * to match induction hypotheses with their conclusions. We identify these
-   * with the unique Skolems that are introduced in that case.
-   * 
-   * All cases create sets of literals {L11, ..., L1n1}, ..., {Ln1, ..., Lnnn}
-   * which are just the input literals where each variable is replaced with the
-   * Skolemized version of the term it is mapped to in that case.
-   * 
-   * The only case when such a set contains more than one literal is when
-   * a "hypothesis" main literal is created, to which all "hypothesis" side literals
-   * are added.
-   * 
-   * In the end, the cross product of the literal sets for each case are created,
-   * resulting in the clausification of the antecedent of the induction formula,
-   * after which the conclusion literals are also put into place.
-   **/
+  vset<unsigned> hypVars;
+  FormulaList* cases = FormulaList::empty();
+  Literal* mainLitS;
+  unsigned var = 0;
+  for (const auto& kv : scheme.inductionTerms()) {
+    var = max(var, kv.second);
+  }
+  var++;
 
   for (const auto& c : scheme.cases()) {
-    vvector<LiteralStack> newLits;
-
-    vset<unsigned> skIntroduced;
-    auto sk = skolemizeCase(c, scheme.inductionTerms(), skIntroduced);
-    auto newMainLit = SubstHelper::apply<Substitution>(mainLit, sk._step);
-    for (auto st : lits) {
-      st.push(newMainLit);
-      newLits.push_back(st);
-    }
-
-    for (const auto& kv : sideLitQrPairs) {
-      for (auto st : lits) {
-        st.push(SubstHelper::apply<Substitution>(kv.first, sk._step));
-        newLits.push_back(st);
-      }
-    }
-
-    for (auto& r : sk._recursiveCalls) {
-      auto newHypLit = Literal::complementaryLiteral(
-        SubstHelper::apply<Substitution>(mainLit, r));
-      for (auto st : lits) {
-        st.push(newHypLit);
-        for (const auto& kv : sideLitQrPairs) {
-          st.push(Literal::complementaryLiteral(
-            SubstHelper::apply<Substitution>(kv.first, r)));
-        }
-        newLits.push_back(st);
-      }
-      if (env.options->inductionHypRewriting() && mainLit->isEquality()) {
-        litToSkolemsMap.insert(make_pair(newHypLit, vset<unsigned>()));
-        litToSkolemsMap.insert(make_pair(newMainLit, vset<unsigned>()));
-        for (const auto& fn : skIntroduced) {
-          TermList t(Term::create(fn, 0, nullptr));
-          if (newHypLit->containsSubterm(t)) {
-            litToSkolemsMap.at(newHypLit).insert(fn);
-            litToSkolemsMap.at(newMainLit).insert(fn);
-          }
+    auto rn = renameCase(c, scheme.inductionTerms(), var);
+    FormulaList* ll = FormulaList::empty();
+    for (auto& r : rn._recursiveCalls) {
+      FormulaList::push(createImplication(r, mainLit, sideLitQrPairs, mainLitS), ll);
+      if (indhrw && mainLit->isEquality()) {
+        VList::Iterator vit(mainLitS->freeVariables());
+        while (vit.hasNext()) {
+          hypVars.insert(vit.next());
         }
       }
     }
-    lits = newLits;
-  }
-
-  for (auto& st : lits) {
-    st.push(Literal::complementaryLiteral(mainLit));
-    for (const auto& kv : sideLitQrPairs) {
-      st.push(Literal::complementaryLiteral(kv.first));
+    auto right = createImplication(rn._step, mainLit, sideLitQrPairs, mainLitS);
+    Formula* left = 0;
+    if (FormulaList::isNonEmpty(ll)) {
+      left = JunctionFormula::generalJunction(Connective::AND, ll);
     }
+    auto f = left ? new BinaryFormula(Connective::IMP, left, right) : right;
+    VList* vars = VList::empty();
+    TermList t;
+    for (const auto& kv : scheme.inductionTerms()) {
+      if (rn._step.findBinding(kv.second, t)) {
+        vars = VList::append(vars, t.freeVariables());
+      }
+    }
+    FormulaList::push(VList::isEmpty(vars) ? f : new QuantifiedFormula(Connective::FORALL, vars, 0, f), cases);
   }
 
-  ClauseStack temp;
-  Inference inf = NonspecificInference0(UnitInputType::AXIOM,_rule);
+  ASS(FormulaList::isNonEmpty(cases));
+  Substitution empty;
+  VList* vars = VList::empty();
+  RobSubstitution subst;
+  for (const auto& kv : scheme.inductionTerms()) {
+    VList::push(kv.second, vars);
+    ALWAYS(subst.match(TermList(kv.second, false), 0, TermList(kv.first), 1));
+  }
+  Formula* hypothesis = new BinaryFormula(Connective::IMP,
+    JunctionFormula::generalJunction(Connective::AND, cases),
+    new QuantifiedFormula(Connective::FORALL, vars, 0,
+      createImplication(empty, mainLit, sideLitQrPairs, mainLitS)));
+  // cout << *hypothesis << endl;
+
+  NewCNF cnf(0);
+  cnf.setForInduction();
+  Stack<Clause*> hyp_clauses;
+  Inference inf2 = NonspecificInference0(UnitInputType::AXIOM,_rule);
   unsigned maxDepth = mainQuery.clause->inference().inductionDepth();
   for (const auto& kv : sideLitQrPairs) {
     maxDepth = max(maxDepth, kv.second.clause->inference().inductionDepth());
   }
-  inf.setInductionDepth(maxDepth+1);
-  for (const auto& st : lits) {
-    temp.push(Clause::fromStack(st, inf));
-  }
-  for (const auto& kv : litToSkolemsMap) {
-    for (auto& c : temp) {
-      if (c->contains(kv.first)) {
-        for (const auto& e : kv.second) {
-          c->inference().addToInductionInfo(e);
-        }
-      }
+  inf2.setInductionDepth(maxDepth+1);
+  auto fu = new FormulaUnit(hypothesis,inf2);
+  cnf.clausify(NNF::ennf(fu), hyp_clauses);
+  auto skFunToVarMap = cnf.getSkFunToVarMap();
+  DHMap<unsigned,unsigned>::Iterator it(skFunToVarMap);
+  DHMap<unsigned,unsigned> rvs;
+  if (indhrw && mainLit->isEquality()) {
+    while (it.hasNext()) {
+      unsigned f, v;
+      it.next(f, v);
+      ALWAYS(rvs.insert(v, f));
     }
   }
 
-  // The main literal that we resolve the induction clauses against first,
-  // instantiates the literals that we want to resolve the side literals with,
-  // we calculate these literals here.
-  ClauseStack::Iterator cit(temp);
-  RobSubstitution subst;
-  if (!subst.match(TermList(mainLit), 0, TermList(mainQuery.literal), 1)) {
-    ASS(mainLit->isEquality());
-    // direct match did not succeed, so we match one literal with the other reversed
-    ALWAYS(subst.match(*mainLit->nthArgument(0), 0, *mainQuery.literal->nthArgument(1), 1)
-      && subst.match(*mainLit->nthArgument(1), 0, *mainQuery.literal->nthArgument(0), 1));
-  }
-  for (const auto& kv : sideLitQrPairs) {
-    auto conclusion = kv.first;
-    auto qr = kv.second;
-    if (!subst.match(TermList(conclusion), 0, TermList(qr.literal), 1)) {
-      ASS_REP(conclusion->isEquality() && qr.literal->isEquality(), conclusion->toString() + qr.literal->toString());
-      // direct match did not succeed, so we match one literal with the other reversed
-      ALWAYS(subst.match(*conclusion->nthArgument(0), 0, *qr.literal->nthArgument(1), 1)
-        && subst.match(*conclusion->nthArgument(1), 0, *qr.literal->nthArgument(0), 1));
-    }
-  }
   auto resSubst = ResultSubstitution::fromSubstitution(&subst, 0, 1);
   auto skMain = InductionHelper::collectSkolems(mainQuery.literal, mainQuery.clause);
   for (unsigned i = 0; i < mainQuery.clause->length(); i++) {
@@ -362,8 +360,12 @@ void GeneralInduction::generateClauses(
   }
 
   // Resolve all induction clauses with the main and side literals
+  ClauseStack::Iterator cit(hyp_clauses);
   while(cit.hasNext()){
     Clause* c = cit.next();
+    for (const auto& v : hypVars) {
+      c->inference().addToInductionInfo(rvs.get(v));
+    }
     auto qr = mainQuery;
     qr.substitution = resSubst;
     c = BinaryResolution::generateClause(c, Literal::complementaryLiteral(mainLit), qr, *env.options);
@@ -393,50 +395,6 @@ void GeneralInduction::generateClauses(
     clauses.push(c);
   }
   env.statistics->induction++;
-}
-
-TermList mapVarsToSkolems(Substitution& subst, TermList t, TermList sort, vset<unsigned>& introducedSkolems) {
-  DHMap<unsigned,TermList> varSorts;
-  SortHelper::collectVariableSorts(t, sort, varSorts);
-
-  auto it = varSorts.items();
-  while (it.hasNext()) {
-    auto v = it.next();
-    TermList temp;
-    if (!subst.findBinding(v.first, temp)) {
-      auto fn = Skolem::addSkolemFunction(0, 0, nullptr, v.second);
-      subst.bind(v.first, Term::create(fn, 0, nullptr));
-      introducedSkolems.insert(fn);
-    }
-  }
-  return SubstHelper::apply<Substitution>(t, subst);
-}
-
-InductionScheme::Case GeneralInduction::skolemizeCase(const InductionScheme::Case& c, const vmap<Term*, unsigned>& inductionTerms, vset<unsigned>& introducedSkolems)
-{
-  Substitution subst, step;
-  TermList t;
-  // first Skolemize all induction terms and create step
-  for (const auto& kv : inductionTerms) {
-    if (c._step.findBinding(kv.second, t)) {
-      auto sort = SortHelper::getResultSort(kv.first);
-      step.bind(kv.second, mapVarsToSkolems(subst, t, sort, introducedSkolems));
-    }
-  }
-  // create recursive calls (i.e. hypotheses)
-  // if there is a variable not yet Skolemized, it remains a universally
-  // quantified variable in the hypotheses, which is fine
-  vvector<Substitution> recursiveCalls;
-  for (const auto& recCall : c._recursiveCalls) {
-    recursiveCalls.emplace_back();
-    for (const auto& kv : inductionTerms) {
-      if (recCall.findBinding(kv.second, t)) {
-        auto sort = SortHelper::getResultSort(kv.first);
-        recursiveCalls.back().bind(kv.second, mapVarsToSkolems(subst, t, sort, introducedSkolems));
-      }
-    }
-  }
-  return InductionScheme::Case(std::move(recursiveCalls), std::move(step));
 }
 
 void reserveBlanksForScheme(const InductionScheme& sch, DHMap<TermList, vvector<Term*>>& blanks)

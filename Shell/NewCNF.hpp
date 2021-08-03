@@ -63,10 +63,11 @@ class NewCNF
 public:
   NewCNF(unsigned namingThreshold)
     : _namingThreshold(namingThreshold), _iteInliningThreshold((unsigned)ceil(log2(namingThreshold))),
-      _collectedVarSorts(false), _maxVar(0),_forInduction(false) {}
+      _collectedVarSorts(false), _maxVar(0),_forInduction(false), _skFnToVar() {}
 
   void clausify(FormulaUnit* unit, Stack<Clause*>& output);
   void setForInduction(){ _forInduction=true; }
+  const DHMap<unsigned,unsigned>& getSkFunToVarMap() const { return _skFnToVar; }
 private:
   unsigned _namingThreshold;
   unsigned _iteInliningThreshold;
@@ -579,6 +580,7 @@ private:
   Term* createSkolemTerm(unsigned var, VarSet* free);
 
   bool _forInduction;
+  DHMap<unsigned,unsigned> _skFnToVar;
 
   // caching of free variables for subformulas
   DHMap<Formula*,VarSet*> _freeVars;
