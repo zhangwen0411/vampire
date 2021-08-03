@@ -236,6 +236,8 @@ vset<unsigned> InductionHelper::collectSkolems(Literal* l, Clause* cl) {
     auto it = info->iterator();
     while (it.hasNext()) {
       auto fn = it.next();
+      // TODO: these Skolem need not be constants,
+      // so this is not entirely correct here
       TermList t(Term::create(fn, 0, nullptr));
       if (l->containsSubterm(t)) {
         res.insert(fn);
