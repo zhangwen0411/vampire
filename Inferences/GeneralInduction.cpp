@@ -241,8 +241,10 @@ InductionScheme::Case renameCase(const InductionScheme::Case& c, const vmap<Term
       r.normalizeVariables(t);
       step.bind(kv.second, r.apply(t));
     }
-    for (const auto& recCall : c._recursiveCalls) {
-      recCalls.emplace_back();
+  }
+  for (const auto& recCall : c._recursiveCalls) {
+    recCalls.emplace_back();
+    for (const auto& kv : inductionTerms) {
       if (recCall.findBinding(kv.second, t)) {
         r.normalizeVariables(t);
         recCalls.back().bind(kv.second, r.apply(t));
@@ -283,15 +285,28 @@ void GeneralInduction::generateClauses(
   }
   var++;
 
+  TermList t;
   for (const auto& c : scheme.cases()) {
     auto rn = renameCase(c, scheme.inductionTerms(), var);
     FormulaList* ll = FormulaList::empty();
+    VList* vars = VList::empty();
     for (auto& r : rn._recursiveCalls) {
       FormulaList::push(createImplication(r, mainLit, sideLitQrPairs, mainLitS), ll);
       if (indhrw && mainLit->isEquality()) {
         VList::Iterator vit(mainLitS->freeVariables());
         while (vit.hasNext()) {
           hypVars.insert(vit.next());
+        }
+      }
+      for (const auto& kv : scheme.inductionTerms()) {
+        if (r.findBinding(kv.second, t)) {
+          VList::Iterator vit(t.freeVariables());
+          while (vit.hasNext()) {
+            auto v = vit.next();
+            if (!VList::member(v, vars)) {
+              VList::push(v, vars);
+            }
+          }
         }
       }
     }
@@ -301,11 +316,15 @@ void GeneralInduction::generateClauses(
       left = JunctionFormula::generalJunction(Connective::AND, ll);
     }
     auto f = left ? new BinaryFormula(Connective::IMP, left, right) : right;
-    VList* vars = VList::empty();
-    TermList t;
     for (const auto& kv : scheme.inductionTerms()) {
       if (rn._step.findBinding(kv.second, t)) {
-        vars = VList::append(vars, t.freeVariables());
+        VList::Iterator vit(t.freeVariables());
+        while (vit.hasNext()) {
+          auto v = vit.next();
+          if (!VList::member(v, vars)) {
+            VList::push(v, vars);
+          }
+        }
       }
     }
     FormulaList::push(VList::isEmpty(vars) ? f : new QuantifiedFormula(Connective::FORALL, vars, 0, f), cases);
