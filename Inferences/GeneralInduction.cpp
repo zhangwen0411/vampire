@@ -341,12 +341,7 @@ void GeneralInduction::generateClauses(
     // to the variables before Skolemization. We need the reverse of
     // this, but we double check that it is a bijection.
     // In other cases it may be non-bijective, but here it should be.
-    DHMap<unsigned,unsigned>::Iterator it(cnf.getSkFunToVarMap());
-    while (it.hasNext()) {
-      unsigned f, v;
-      it.next(f, v);
-      ALWAYS(rvs.insert(v, f));
-    }
+    rvs.loadFromInverted(cnf.getSkFunToVarMap());
   }
 
   // Resolve all induction clauses with the main and side literals

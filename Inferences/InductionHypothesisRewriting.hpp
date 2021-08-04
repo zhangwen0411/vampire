@@ -46,13 +46,10 @@ public:
       _salg->getIndexManager()->request(IH_LHS_SUBST_TREE));
     _stIndex = static_cast<ICSubtermIndex *>(
       _salg->getIndexManager()->request(IC_SUBTERM_SUBST_TREE));
-    // _stIndex = static_cast<DemodulationSubtermIndex *>(
-    //   _salg->getIndexManager()->request(DEMODULATION_SUBTERM_SUBST_TREE));
 
   }
   void detach() override {
     _salg->getIndexManager()->release(IC_SUBTERM_SUBST_TREE);
-    // _salg->getIndexManager()->release(DEMODULATION_SUBTERM_SUBST_TREE);
     _stIndex = nullptr;
     _salg->getIndexManager()->release(IH_LHS_SUBST_TREE);
     _lhsIndex = nullptr;
@@ -65,22 +62,16 @@ public:
   }
   ClauseIterator generateClauses(Clause *premise) override;
 
-private:
-  ClauseIterator generateClauses(Literal* lit, Clause* premise);
   ClauseIterator perform(const vset<unsigned>& sig,
       Clause *rwClause, Literal *rwLiteral, TermList rwSide, TermList rwTerm,
       Clause *eqClause, Literal *eqLiteral, TermList eqLHS,
       ResultSubstitutionSP subst, bool eqIsResult);
 
-  struct ForwardResultFn;
-  struct RewriteableSubtermsFn;
-  struct InstancesFn;
-  struct GeneralizationsFn;
-  struct BackwardResultFn;
+private:
+  ClauseIterator generateClauses(Literal* lit, Clause* premise);
 
   IHLHSIndex *_lhsIndex;
   ICSubtermIndex* _stIndex;
-  // DemodulationSubtermIndex* _stIndex;
   GeneralInduction* _induction;
   Splitter* _splitter;
   DuplicateLiteralRemovalISE* _dupLitRemoval;

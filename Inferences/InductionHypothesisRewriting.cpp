@@ -48,9 +48,125 @@ using namespace Lib;
 using namespace Kernel;
 using namespace Indexing;
 
+bool elemFilter(const TermQueryResult& qr) {
+  return qr.literal->isEquality() && InductionHelper::isInductionLiteral(qr.literal, qr.clause);
+}
+
+struct FilterFn
+{
+  bool operator()(const pair<TermQueryResult, TermQueryResult>& p) const {
+    if (!elemFilter(p.first) || !elemFilter(p.second)) {
+      return false;
+    }
+    auto sk1 = InductionHelper::collectSkolems(p.first.literal, p.first.clause);
+    auto sk2 = InductionHelper::collectSkolems(p.second.literal, p.second.clause);
+    return includes(sk1.begin(), sk1.end(), sk2.begin(), sk2.end());
+  }
+
+  bool elemFilter(const TermQueryResult& qr) const {
+    return qr.literal->isEquality() && InductionHelper::isInductionLiteral(qr.literal, qr.clause);
+  }
+};
+
+struct SideFn
+{
+  VirtualIterator<pair<pair<TermQueryResult, TermQueryResult>, TermList> > operator()(const pair<TermQueryResult, TermQueryResult>& p)
+  {
+    return pvi( pushPairIntoRightIterator(p, EqHelper::getEqualityArgumentIterator(p.first.literal)) );
+  }
+};
+
+struct GeneralizationsFn
+{
+  GeneralizationsFn(IHLHSIndex* index) : _index(index) {}
+  VirtualIterator<pair<TermQueryResult, TermQueryResult> > operator()(TermQueryResult qr)
+  {
+    return pvi( pushPairIntoRightIterator(qr, _index->getGeneralizations(qr.term)) );
+  }
+private:
+  IHLHSIndex* _index;
+};
+
+struct InstancesFn
+{
+  InstancesFn(ICSubtermIndex* index) : _index(index) {}
+  VirtualIterator<pair<TermQueryResult, TermQueryResult> > operator()(TermQueryResult qr)
+  {
+    return pvi( getMappingIterator(_index->getInstances(qr.term), PairLeftPushingFn<TermQueryResult, TermQueryResult>(qr)) );
+  }
+private:
+  ICSubtermIndex* _index;
+};
+
+struct TermToTermQueryResultFn
+{
+  TermToTermQueryResultFn(Literal* lit, Clause* cl) : _lit(lit), _cl(cl) {}
+  TermQueryResult operator()(TermList t)
+  {
+    return TermQueryResult(t, _lit, _cl);
+  }
+private:
+  Literal* _lit;
+  Clause* _cl;
+};
+
+struct ResultsFn
+{
+  ResultsFn(InductionHypothesisRewriting* indhrw) : _indhrw(indhrw) {}
+  ClauseIterator operator()(const pair<pair<TermQueryResult, TermQueryResult>, TermList>& p)
+  {
+    auto& qr1 = p.first.first;
+    auto& qr2 = p.first.second;
+    auto sk = InductionHelper::collectSkolems(qr2.literal, qr2.clause);
+    return _indhrw->perform(sk, qr1.clause, qr1.literal, p.second, qr1.term,
+      qr2.clause, qr2.literal, qr2.term,
+      qr1.substitution ? qr1.substitution : qr2.substitution, !qr1.substitution);
+  }
+private:
+  InductionHypothesisRewriting* _indhrw;
+};
+
 ClauseIterator InductionHypothesisRewriting::generateClauses(Clause *premise)
 {
-  CALL("InductionHypothesisRewriting::generateClauses");
+  CALL("InductionHypothesisRewriting::generateClauses(Clause*)");
+
+  // return iterTraits(premise->iterLits())
+  //   .flatMap([](Literal* lit) {
+  //     if (lit->isNegative()) {
+  //       NonVariableNonTypeIterator nvi(lit);
+  //       return pvi(pushPairIntoRightIterator(lit, pvi(getUniquePersistentIteratorFromPtr(&nvi))));
+  //     }
+  //     return pvi(pushPairIntoRightIterator(lit, EqHelper::getEqualityArgumentIterator(lit)));
+  //   })
+  //   .map([&premise](pair<Literal*, TermList> p) {
+  //     return TermQueryResult(p.second, p.first, premise);
+  //   })
+  //   .flatMap([this](TermQueryResult qr){
+  //     if (qr.literal->isNegative()) {
+  //       return pvi( pushPairIntoRightIterator(qr, _lhsIndex->getGeneralizations(qr.term)) );
+  //     }
+  //     return pvi( getMappingIterator(_stIndex->getInstances(qr.term), PairLeftPushingFn<TermQueryResult, TermQueryResult>(qr)) );
+  //   })
+  //   .filter([](pair<TermQueryResult, TermQueryResult> p) {
+  //     if (!elemFilter(p.first) || !elemFilter(p.second)) {
+  //       return false;
+  //     }
+  //     auto sk1 = InductionHelper::collectSkolems(p.first.literal, p.first.clause);
+  //     auto sk2 = InductionHelper::collectSkolems(p.second.literal, p.second.clause);
+  //     return includes(sk1.begin(), sk1.end(), sk2.begin(), sk2.end());
+  //   })
+  //   .flatMap([](pair<TermQueryResult, TermQueryResult> p) {
+  //     return pvi( pushPairIntoRightIterator(p, EqHelper::getEqualityArgumentIterator(p.first.literal)) );
+  //   })
+  //   .flatMap([this](pair<pair<TermQueryResult, TermQueryResult>, TermList> p) -> ClauseIterator {
+  //     auto& qr1 = p.first.first;
+  //     auto& qr2 = p.first.second;
+  //     auto sk = InductionHelper::collectSkolems(qr2.literal, qr2.clause);
+  //     return perform(sk, qr1.clause, qr1.literal, p.second, qr1.term,
+  //       qr2.clause, qr2.literal, qr2.term,
+  //       qr1.substitution ? qr1.substitution : qr2.substitution, !qr1.substitution);
+  //   });
+
   ClauseIterator res = ClauseIterator::getEmpty();
   for (unsigned i = 0; i < premise->length(); i++) {
     res = pvi(getConcatenatedIterator(res, generateClauses((*premise)[i], premise)));
@@ -60,59 +176,32 @@ ClauseIterator InductionHypothesisRewriting::generateClauses(Clause *premise)
 
 ClauseIterator InductionHypothesisRewriting::generateClauses(Literal* lit, Clause *premise)
 {
-  ClauseIterator res = ClauseIterator::getEmpty();
-  if (!lit->isEquality()) {
-    return res;
+  CALL("InductionHypothesisRewriting::generateClauses(Literal*,Clause*)");
+  if (!lit->isEquality() || !InductionHelper::isInductionLiteral(lit, premise)) {
+    return ClauseIterator::getEmpty();
   }
-  if (InductionHelper::isInductionLiteral(lit, premise)) {
-    auto sk = InductionHelper::collectSkolems(lit, premise);
-    TermIterator lhsi = EqHelper::getEqualityArgumentIterator(lit);
-    while (lhsi.hasNext()) {
-      TermList litarg = lhsi.next();
-      if (lit->isNegative()) {
-        NonVariableIterator sti(litarg.term(), true);
-        while (sti.hasNext()) {
-          auto t = sti.next();
-          auto ts = _lhsIndex->getGeneralizations(t);
-          while (ts.hasNext()) {
-            auto qr = ts.next();
-            if (!InductionHelper::isInductionLiteral(qr.literal, qr.clause)) {
-              continue;
-            }
 
-            auto skOther = InductionHelper::collectSkolems(qr.literal, qr.clause);
-            if (!includes(sk.begin(), sk.end(), skOther.begin(), skOther.end())) {
-              continue;
-            }
-            res = pvi(getConcatenatedIterator(res,
-              perform(skOther, premise, lit, litarg, t, qr.clause, qr.literal, qr.term, qr.substitution, true)));
-          }
-        }
-      } else {
-        auto ts = _stIndex->getInstances(litarg);
-        while (ts.hasNext()) {
-          auto qr = ts.next();
-          if (!InductionHelper::isInductionLiteral(qr.literal, qr.clause)) {
-            continue;
-          }
-
-          auto skOther = InductionHelper::collectSkolems(qr.literal, qr.clause);
-          if (!includes(skOther.begin(), skOther.end(), sk.begin(), sk.end())) {
-            continue;
-          }
-          for (unsigned k = 0; k <= 1; k++) {
-            auto side = *qr.literal->nthArgument(k);
-            if (!side.containsSubterm(qr.term)) {
-              continue;
-            }
-            res = pvi(getConcatenatedIterator(res,
-              perform(sk, qr.clause, qr.literal, side, qr.term, premise, lit, litarg, qr.substitution, false)));
-          }
-        }
-      }
-    }
+  // create pairs of TermQueryResult: (conclusion, hypothesis)
+  TermIterator it;
+  if (lit->isNegative()) {
+    NonVariableNonTypeIterator nvi(lit);
+    it = pvi(getUniquePersistentIteratorFromPtr(&nvi));
+  } else {
+    it = EqHelper::getEqualityArgumentIterator(lit);
   }
-  return res;
+  auto it2 = getMappingIterator(it, TermToTermQueryResultFn(lit, premise));
+  VirtualIterator<pair<TermQueryResult, TermQueryResult>> it3;
+  if (lit->isNegative()) {
+    it3 = pvi(getMapAndFlattenIterator(it2, GeneralizationsFn(_lhsIndex)));
+  } else {
+    it3 = pvi(getMapAndFlattenIterator(it2, InstancesFn(_stIndex)));
+  }
+  // filter the pairs
+  auto it4 = getFilteredIterator(it3, FilterFn());
+  // add the two sides of inequality for each conclusion
+  auto it5 = getMapAndFlattenIterator(it4, SideFn());
+  // compute results
+  return pvi(getMapAndFlattenIterator(it5, ResultsFn(this)));
 }
 
 ClauseIterator InductionHypothesisRewriting::perform(const vset<unsigned>& sig,
@@ -131,6 +220,10 @@ ClauseIterator InductionHypothesisRewriting::perform(const vset<unsigned>& sig,
 
   if (SortHelper::getTermSort(rwTerm, rwLit) != SortHelper::getEqualityArgumentSort(eqLit)) {
     // sorts don't match
+    return res;
+  }
+
+  if (!rwSide.containsSubterm(rwTerm)) {
     return res;
   }
 
