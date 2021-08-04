@@ -1965,6 +1965,7 @@ public:
   void setSchedule(Schedule newVal) {  _schedule.actualValue = newVal; }
   unsigned multicore() const { return _multicore.actualValue; }
   void setMulticore(unsigned newVal) { _multicore.actualValue = newVal; }
+  float slowness() const {return _slowness.actualValue; }
   InputSyntax inputSyntax() const { return _inputSyntax.actualValue; }
   void setInputSyntax(InputSyntax newVal) { _inputSyntax.actualValue = newVal; }
   bool normalize() const { return _normalize.actualValue; }
@@ -2504,6 +2505,7 @@ private:
   ChoiceOptionValue<Mode> _mode;
   ChoiceOptionValue<Schedule> _schedule;
   UnsignedOptionValue _multicore;
+  FloatOptionValue _slowness;
 
   IntOptionValue _naming;
   BoolOptionValue _nonliteralsInClauseWeight;
