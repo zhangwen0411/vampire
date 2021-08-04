@@ -19,7 +19,6 @@
 #include "Kernel/Substitution.hpp"
 #include "Kernel/Term.hpp"
 #include "Kernel/TermTransformer.hpp"
-#include "Indexing/Index.hpp"
 #include "InductionPreprocessor.hpp"
 #include "Lib/STL.hpp"
 
@@ -31,6 +30,8 @@ using namespace Kernel;
 using namespace Lib;
 using namespace Indexing;
 
+/* Provides a wrapper for a bit vector. After setting its bits and size, it
+ * can iterate through all combinations of bit vectors masking its 1 bits. */
 class Occurrences {
 public:
   Occurrences(bool initial)
@@ -43,11 +44,12 @@ public:
     _occ |= (1 & val);
   }
 
+  // reverse the bit vector
   void finalize() {
     ASS(!_finished);
     _finished = true;
     const auto c = num_bits();
-    ASS(c); // if no bits are present, something is wrong
+    ASS(c); // disallow empty bitvectors
     auto temp = _occ;
     _occ = 0;
     for (uint64_t i = 0; i < c; i++) {
@@ -58,10 +60,11 @@ public:
     _iter = _occ;
   }
 
+  // iterate to the next bit vector
   bool next() {
     ASS(_finished);
     _iter++;
-    _iter |= _occ;
+    _iter |= _occ; // mask initial bits
     return _iter < _max;
   }
 

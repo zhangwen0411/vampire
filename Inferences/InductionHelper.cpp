@@ -42,6 +42,26 @@ struct SLQueryResultToTermQueryResultFn
   TermList variable;
 };
 
+bool isIntegerComparisonLiteral(Literal* lit) {
+  CALL("isIntegerComparisonLiteral");
+
+  if (!lit->ground() || !theory->isInterpretedPredicate(lit)) return false;
+  switch (theory->interpretPredicate(lit)) {
+    case Theory::INT_LESS:
+      // The only supported integer comparison predicate is INT_LESS.
+      break;
+    case Theory::INT_LESS_EQUAL:
+    case Theory::INT_GREATER_EQUAL:
+    case Theory::INT_GREATER:
+      // All formulas should be normalized to only use INT_LESS and not other integer comparison predicates.
+      ASSERTION_VIOLATION;
+    default:
+      // Not an integer comparison.
+      return false;
+  }
+  return true;
+}
+
 };  // namespace
 
 TermQueryResultIterator InductionHelper::getComparisonMatch(
@@ -109,26 +129,6 @@ bool InductionHelper::isIntegerComparison(Clause* c) {
   CALL("InductionHelper::isIntegerComparison");
   if (c->length() != 1) return false;
   return isIntegerComparisonLiteral((*c)[0]);
-}
-
-bool InductionHelper::isIntegerComparisonLiteral(Literal* lit) {
-  CALL("isIntegerComparisonLiteral");
-
-  if (!lit->ground() || !theory->isInterpretedPredicate(lit)) return false;
-  switch (theory->interpretPredicate(lit)) {
-    case Theory::INT_LESS:
-      // The only supported integer comparison predicate is INT_LESS.
-      break;
-    case Theory::INT_LESS_EQUAL:
-    case Theory::INT_GREATER_EQUAL:
-    case Theory::INT_GREATER:
-      // All formulas should be normalized to only use INT_LESS and not other integer comparison predicates.
-      ASSERTION_VIOLATION;
-    default:
-      // Not an integer comparison.
-      return false;
-  }
-  return true;
 }
 
 bool InductionHelper::isIntInductionOn() {
