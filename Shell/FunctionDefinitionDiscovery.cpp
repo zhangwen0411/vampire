@@ -179,7 +179,7 @@ void FunctionDefinitionDiscovery::findPossibleDefinitions(Clause* cl)
     if (lit->isEquality()) {
       auto lhs = *lit->nthArgument(0);
       auto rhs = *lit->nthArgument(1);
-      auto processFn = [this](TermList header, TermList body, InductionTemplate& templ) {
+      auto processFn = [](TermList header, TermList body, InductionTemplate& templ) {
         if (!isHeader(header)) {
           return false;
         }

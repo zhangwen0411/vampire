@@ -235,34 +235,6 @@ private:
   InductionScheme generateStructural(Term* term);
 };
 
-struct IntegerInductionSchemeGenerator
-  : public InductionSchemeGenerator
-{
-  CLASS_NAME(IntegerInductionSchemeGenerator);
-  USE_ALLOCATOR(IntegerInductionSchemeGenerator);
-
-  void generate(const SLQueryResult& main,
-    const vset<pair<Literal*,Clause*>>& side,
-    vvector<pair<InductionScheme, OccurrenceMap>>& res) override;
-
-private:
-  InductionScheme generateInteger(Term* term);
-};
-
-struct IntegerIntervalInductionSchemeGenerator
-  : public InductionSchemeGenerator
-{
-  CLASS_NAME(IntegerIntervalInductionSchemeGenerator);
-  USE_ALLOCATOR(IntegerIntervalInductionSchemeGenerator);
-
-  void generate(const SLQueryResult& main,
-    const vset<pair<Literal*,Clause*>>& side,
-    vvector<pair<InductionScheme, OccurrenceMap>>& res) override;
-
-private:
-  InductionScheme generateInteger(Term* term, Term* lowerBound, Term* upperBound);
-};
-
 } // Shell
 
 #endif

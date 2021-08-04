@@ -236,45 +236,6 @@ void NewCNF::process(Literal* literal, bool functionDefinition, Occurrences &occ
     iteCounter++;
   }
 
-  LOG4("Found", matchVariables.size(), "variable(s) for matches inside", literal->toString());
-  LOG3("Replacing it by", processedLiteral->toString(), "with variable substitutions");
-
-  while (matchVariables.isNonEmpty()) {
-    unsigned matchVar          = matchVariables.pop();
-    List<Formula*>* conditions = matchConditions.pop();
-    List<TermList>* branches   = matchBranches.pop();
-
-    List<LPair>* processedLiterals(0);
-
-    List<Formula*>::Iterator condIt(conditions);
-    List<TermList>::Iterator branchIt(branches);
-
-    while (List<LPair>::isNonEmpty(literals)) {
-      LPair p = List<LPair>::pop(literals);
-      Literal* literal = p.first;
-      List<GenLit>* gls = p.second;
-
-      while (condIt.hasNext()) {
-        ASS(branchIt.hasNext());
-
-        auto condition = condIt.next();
-        auto branch = branchIt.next();
-        enqueue(condition);
-
-        GenLit negCondition = GenLit(condition, NEGATIVE);
-
-        Substitution subst;
-        subst.bind(matchVar, branch);
-
-        Literal* branchLiteral = SubstHelper::apply(literal, subst);
-
-        List<LPair>::push(make_pair(
-          branchLiteral, List<GenLit>::cons(negCondition, gls)), processedLiterals);
-      }
-    }
-    literals = processedLiterals;
-  }
-
   ASS(variables.isEmpty());
   ASS(conditions.isEmpty());
   ASS(thenBranches.isEmpty());

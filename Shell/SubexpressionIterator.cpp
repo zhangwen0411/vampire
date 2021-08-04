@@ -162,6 +162,7 @@ namespace Shell {
               }
               break;
             }
+
 #if VDEBUG
             default:
               ASSERTION_VIOLATION_REP(term->toString());

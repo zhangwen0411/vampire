@@ -426,19 +426,19 @@ bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vv
   vvector<vvector<vvector<TermList>>> availableTermsLists;
   availableTermsLists.push_back(availableTermsEmpty);
 
-  bool overdefined = false;
+  // bool overdefined = false;
   for (auto& c : cases) {
     vvector<vvector<vvector<TermList>>> nextAvailableTermsLists;
     Term::Iterator it(c);
     unsigned j = 0;
     while (it.hasNext()) {
       auto arg = it.next();
-      bool excluded = false;
+      // bool excluded = false;
       if (arg.isTerm()) {
         auto tempLists = availableTermsLists;
         for (auto& availableTerms : tempLists) {
           if (TermAlgebra::excludeTermFromAvailables(availableTerms[j], arg, var)) {
-            excluded = true;
+            // excluded = true;
           }
         }
         nextAvailableTermsLists.insert(nextAvailableTermsLists.end(),
@@ -446,14 +446,14 @@ bool InductionPreprocessor::checkWellDefinedness(const vvector<Term*>& cases, vv
       } else {
         for (const auto& availableTerms : availableTermsLists) {
           if (!availableTerms[j].empty()) {
-            excluded = true;
+            // excluded = true;
             break;
           }
         }
       }
-      if (!excluded) {
-        overdefined = true;
-      }
+      // if (!excluded) {
+      //   overdefined = true;
+      // }
       j++;
     }
     availableTermsLists = nextAvailableTermsLists;

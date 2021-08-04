@@ -219,6 +219,7 @@ protected:
   Instantiation* _instantiation;
   GeneralInduction* _induction;
 
+
   SubscriptionData _passiveContRemovalSData;
   SubscriptionData _activeContRemovalSData;
 

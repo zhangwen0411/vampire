@@ -8,8 +8,8 @@
  * and in the source directory
  */
 /**
- * @file FnDefRewriting.hpp
- * Defines class FnDefRewriting.
+ * @file InductionHypothesisRewriting.hpp
+ * Defines class InductionHypothesisRewriting.
  */
 
 #ifndef __InductionHypothesisRewriting__

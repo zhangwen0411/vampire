@@ -16,9 +16,6 @@
 #define __FnDefRewriting__
 
 #include "Forwards.hpp"
-#include "Shell/InductionPreprocessor.hpp"
-
-#include "InferenceEngine.hpp"
 
 namespace Inferences {
 

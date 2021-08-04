@@ -8,8 +8,8 @@
  * and in the source directory
  */
 /**
- * @file Induction.hpp
- * Defines class Induction
+ * @file GeneralInduction.hpp
+ * Defines class GeneralInduction
  *
  */
 
@@ -20,8 +20,6 @@
 #include <bitset>
 
 #include "Forwards.hpp"
-
-#include "Indexing/TermIndex.hpp"
 
 #include "Kernel/Clause.hpp"
 #include "Kernel/TermTransformer.hpp"
