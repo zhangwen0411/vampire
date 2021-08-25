@@ -442,6 +442,18 @@ void Options::init()
     _functionDefinitionElimination.addProblemConstraint(hasEquality());
     _functionDefinitionElimination.setRandomChoices({"all","none"});
 
+    _definitionReusePolicy = ChoiceOptionValue<DefinitionReusePolicy>(
+      "definition_reuse_policy",
+      "drp",
+      DefinitionReusePolicy::NONE,
+      {"none", "exact"}
+    );
+    _definitionReusePolicy.description =
+      "Reuse definitions (skolems, naming) where possible.";
+    _lookup.insert(&_definitionReusePolicy);
+    _definitionReusePolicy.tag(OptionTag::PREPROCESSING);
+    _definitionReusePolicy.setRandomChoices({"none","exact"});
+
     _generalSplitting = ChoiceOptionValue<RuleActivity>("general_splitting","gsp",RuleActivity::OFF,{"input_only","off","on"});
     _generalSplitting.description=
     "Splits clauses in order to reduce number of different variables in each clause. "
