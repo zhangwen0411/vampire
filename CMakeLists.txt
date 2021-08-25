@@ -573,6 +573,7 @@ set(VAMPIRE_SHELL_SOURCES
     Shell/CNF.cpp
     Shell/NewCNF.cpp
     #Shell/CParser.cpp
+    Shell/DefinitionReuse.cpp
     Shell/DistinctProcessor.cpp
     Shell/DistinctGroupExpansion.cpp
     Shell/EqResWithDeletion.cpp
@@ -642,6 +643,7 @@ set(VAMPIRE_SHELL_SOURCES
     Shell/CNF.hpp
     Shell/NewCNF.hpp
     #Shell/CParser.hpp
+    Shell/DefinitionReuse.hpp
     Shell/DistinctProcessor.hpp
     Shell/DistinctGroupExpansion.hpp
     Shell/EqResWithDeletion.hpp
