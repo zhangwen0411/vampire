@@ -448,34 +448,40 @@ Formula* Skolem::skolemise (Formula* f)
         SortHelper::normaliseSort(typeVars, rangeSort);
         Term* skolemTerm;
 
-        if(!_appify){
-          //Not the higher-order case. Create the term
-          //sk(typevars, termvars).
-
-          // rectify formula if reuse policy requires it
-          if(reuse_policy->requiresRectification()) {
-            FormulaUnit *copy =
-              new FormulaUnit(reuse, Inference(FromInput(UnitInputType::AXIOM)));
-            FormulaUnit *rectified = Rectify::rectify(copy);
-            reuse = rectified->formula();
-          }
-          skolemTerm = reuse_policy->get(reuse);
-          // failed to reuse existing skolem
-          if(!skolemTerm) {
-            unsigned fun = addSkolemFunction(arity, termVarSorts.begin(), rangeSort, v, typeVars.size());
-            skolemTerm = Term::create(fun, arity, allVars.begin());
-            reuse_policy->reuse(reuse, skolemTerm);
-          }
+        // rectify formula if reuse policy requires it
+        if(reuse_policy->requiresRectification()) {
+          FormulaUnit *copy =
+            new FormulaUnit(reuse, Inference(FromInput(UnitInputType::AXIOM)));
+          FormulaUnit *rectified = Rectify::rectify(copy);
+          reuse = rectified->formula();
+        }
+        skolemTerm = reuse_policy->get(reuse);
+        // can reuse an existing Skolem
+        if(skolemTerm) {
           // reused skolem might e.g. be used in the goal this time, so do this regardless of reuse
           _introducedSkolemFuns.push(skolemTerm->functor());
-        } else {
-          //The higher-order case. Create the term
-          //sk(typevars) @ termvar_1 @ termvar_2 @ ... @ termvar_n
-          TermList skSymSort = Term::arrowSort(termVarSorts, rangeSort);
-          unsigned fun = addSkolemFunction(typeVars.size(), 0, skSymSort, v, typeVars.size());
-          _introducedSkolemFuns.push(fun);
-          TermList head = TermList(Term::create(fun, typeVars.size(), typeVars.begin()));
-          skolemTerm = ApplicativeHelper::createAppTerm(skSymSort, head, termVars).term();
+          // TODO how do I get a functor out of an appified skolem term?
+        }
+        // failed to reuse existing term
+        else {
+          if(!_appify){
+            //Not the higher-order case. Create the term
+            //sk(typevars, termvars).
+            if(!skolemTerm) {
+              unsigned fun = addSkolemFunction(arity, termVarSorts.begin(), rangeSort, v, typeVars.size());
+              _introducedSkolemFuns.push(fun);
+              skolemTerm = Term::create(fun, arity, allVars.begin());
+            }
+          } else {
+            //The higher-order case. Create the term
+            //sk(typevars) @ termvar_1 @ termvar_2 @ ... @ termvar_n
+            TermList skSymSort = Term::arrowSort(termVarSorts, rangeSort);
+            unsigned fun = addSkolemFunction(typeVars.size(), 0, skSymSort, v, typeVars.size());
+            _introducedSkolemFuns.push(fun);
+            TermList head = TermList(Term::create(fun, typeVars.size(), typeVars.begin()));
+            skolemTerm = ApplicativeHelper::createAppTerm(skSymSort, head, termVars).term();
+          }
+          reuse_policy->reuse(reuse, skolemTerm);
         }
 
         env.statistics->skolemFunctions++;
