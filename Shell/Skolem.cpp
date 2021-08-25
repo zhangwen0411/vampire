@@ -26,7 +26,7 @@
 #include "Kernel/ApplicativeHelper.hpp"
 #include "Lib/SharedSet.hpp"
 
-#include "Shell/DefinitionReuse.hpp"
+#include "Shell/NameReuse.hpp"
 #include "Shell/Statistics.hpp"
 #include "Indexing/TermSharing.hpp"
 
@@ -434,7 +434,7 @@ Formula* Skolem::skolemise (Formula* f)
       VList *remainingVars = f->vars();
       SList *remainingSorts = f->sorts();
       Formula *reuse = before;
-      DefinitionReusePolicy *reuse_policy = DefinitionReusePolicy::instance();
+      NameReuse *reuse_policy = NameReuse::skolemInstance();
       while (vs.hasNext()) {
         unsigned v = vs.next();
         TermList rangeSort=_varSorts.get(v, Term::defaultSort());
@@ -490,7 +490,7 @@ Formula* Skolem::skolemise (Formula* f)
         // but not F[X->sK0, Y->sK1, Z->sK2], since this doesn't need a Skolem term
         if(reuse_policy->requiresFormula()) {
           remainingVars = remainingVars->tail();
-          remainingSorts = remainingSorts->tail();
+          remainingSorts = remainingSorts ? remainingSorts->tail() : nullptr;
           if(VList::isNonEmpty(remainingVars))
             reuse = new QuantifiedFormula(
               Connective::EXISTS,

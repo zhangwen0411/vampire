@@ -8,11 +8,11 @@
  * and in the source directory
  */
 /**
- * @file DefinitionReuse.cpp
+ * @file NameReuse.cpp
  * Defines definition-reuse policies, configured by an option
  */
 
-#include "DefinitionReuse.hpp"
+#include "NameReuse.hpp"
 #include "Kernel/Formula.hpp"
 #include "Lib/Environment.hpp"
 #include "Shell/Options.hpp"
@@ -20,28 +20,28 @@
 
 namespace Shell {
 
-static DefinitionReusePolicy *make_policy()
+static NameReuse *make_policy(Options::NameReuse option)
 {
-  switch (env.options->definitionReusePolicy()) {
-    case Options::DefinitionReusePolicy::NONE:
-      return new NoDefinitionReuse();
-    case Options::DefinitionReusePolicy::EXACT:
-      return new ExactDefinitionReuse();
+  switch (option) {
+    case Options::NameReuse::NONE:
+      return new NoNameReuse();
+    case Options::NameReuse::EXACT:
+      return new ExactNameReuse();
   }
 }
 
-DefinitionReusePolicy *DefinitionReusePolicy::instance()
+NameReuse *NameReuse::skolemInstance()
 {
-  static DefinitionReusePolicy *instance = make_policy();
+  static NameReuse *instance = make_policy(env.options->skolemReuse());
   return instance;
 }
 
-Term *ExactDefinitionReuse::get(Formula *f)
+Term *ExactNameReuse::get(Formula *f)
 {
   return _map.get(f->toString(), nullptr);
 }
 
-void ExactDefinitionReuse::reuse(Formula *f, Term *d)
+void ExactNameReuse::reuse(Formula *f, Term *d)
 {
   _map.insert(f->toString(), d);
 }

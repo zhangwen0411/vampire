@@ -8,12 +8,12 @@
  * and in the source directory
  */
 /**
- * @file DefinitionReuse.cpp
+ * @file NameReuse.cpp
  * Defines definition-reuse policies, configured by an option
  */
 
-#ifndef __DefinitionReusePolicy__
-#define __DefinitionReusePolicy__
+#ifndef __NameReuse__
+#define __NameReuse__
 
 #include "Forwards.hpp"
 #include "Lib/DHMap.hpp"
@@ -26,10 +26,11 @@ namespace Shell {
  * Abstract base class: reuse "definition" terms used in place of formulae
  * Use for Skolemisation, naming, possibly others.
  */
-class DefinitionReusePolicy {
+class NameReuse {
 public:
-  // singleton: look at env.options and return a suitable policy
-  static DefinitionReusePolicy *instance();
+  // singleton: look at env.options and return a suitable policy for...
+  // skolems
+  static NameReuse *skolemInstance();
 
   // try and reuse a definition for `f`: nullptr if not seen before or reuse failed
   virtual Term *get(Formula *f) = 0;
@@ -37,7 +38,7 @@ public:
   // remember that we've used a definition term `d` for `f`
   virtual void reuse(Formula *f, Term *d) = 0;
 
-  // do we use formulae at all? - only false for NoDefinitionReuse
+  // do we use formulae at all? - only false for NoNameReuse
   virtual bool requiresFormula() { return true; };
 
   // do formulae need rectifying to be re-used?
@@ -47,10 +48,10 @@ public:
 /**
  * do not attempt to reuse definitions
  */
-class NoDefinitionReuse : public DefinitionReusePolicy {
+class NoNameReuse : public NameReuse {
 public:
-  CLASS_NAME(NoDefinitionReuse)
-  USE_ALLOCATOR(NoDefinitionReuse)
+  CLASS_NAME(NoNameReuse)
+  USE_ALLOCATOR(NoNameReuse)
   inline Term *get(Formula *f) override { return nullptr; }
   inline void reuse(Formula *f, Term *d) override {}
   inline bool requiresFormula() override { return false; }
@@ -60,10 +61,10 @@ public:
 /**
  * reuse definitions if they match exactly
  */
-class ExactDefinitionReuse : public DefinitionReusePolicy {
+class ExactNameReuse : public NameReuse {
 public:
-  CLASS_NAME(ExactDefinitionReuse)
-  USE_ALLOCATOR(ExactDefinitionReuse)
+  CLASS_NAME(ExactNameReuse)
+  USE_ALLOCATOR(ExactNameReuse)
   Term *get(Formula *f) override;
   void reuse(Formula *f, Term *d) override;
   inline bool requiresRectification() override { return true; }

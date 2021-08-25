@@ -442,17 +442,19 @@ void Options::init()
     _functionDefinitionElimination.addProblemConstraint(hasEquality());
     _functionDefinitionElimination.setRandomChoices({"all","none"});
 
-    _definitionReusePolicy = ChoiceOptionValue<DefinitionReusePolicy>(
-      "definition_reuse_policy",
-      "drp",
-      DefinitionReusePolicy::NONE,
+    _skolemReuse = ChoiceOptionValue<NameReuse>(
+      "skolem_reuse",
+      "skr",
+      NameReuse::NONE,
       {"none", "exact"}
     );
-    _definitionReusePolicy.description =
-      "Reuse definitions (skolems, naming) where possible.";
-    _lookup.insert(&_definitionReusePolicy);
-    _definitionReusePolicy.tag(OptionTag::PREPROCESSING);
-    _definitionReusePolicy.setRandomChoices({"none","exact"});
+    _skolemReuse.description =
+      "How to re-use skolem symbols. Possible values are:\n"
+      " none: do not attempt to reuse symbols\n"
+      " exact: reuse symbols referring to identical sub-formulae\n";
+    _lookup.insert(&_skolemReuse);
+    _skolemReuse.tag(OptionTag::PREPROCESSING);
+    _skolemReuse.setRandomChoices({"none","exact"});
 
     _generalSplitting = ChoiceOptionValue<RuleActivity>("general_splitting","gsp",RuleActivity::OFF,{"input_only","off","on"});
     _generalSplitting.description=
