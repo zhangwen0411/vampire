@@ -431,9 +431,9 @@ Formula* Skolem::skolemise (Formula* f)
       SortHelper::normaliseArgSorts(typeVars, termVarSorts);
 
       VList::Iterator vs(f->vars());
-      VList *remainingVars = f->vars();
-      SList *remainingSorts = f->sorts();
       Formula *reuse = before;
+      VList *remainingVars = before->vars();
+      SList *remainingSorts = before->sorts();
       NameReuse *reuse_policy = NameReuse::skolemInstance();
       while (vs.hasNext()) {
         unsigned v = vs.next();
@@ -459,8 +459,12 @@ Formula* Skolem::skolemise (Formula* f)
         // can reuse an existing Skolem
         if(skolemTerm) {
           // reused skolem might e.g. be used in the goal this time, so do this regardless of reuse
-          _introducedSkolemFuns.push(skolemTerm->functor());
-          // TODO how do I get a functor out of an appified skolem term?
+          if(_appify)
+            _introducedSkolemFuns.push(
+              ApplicativeHelper::getHead(skolemTerm).term()->functor()
+            );
+          else
+            _introducedSkolemFuns.push(skolemTerm->functor());
         }
         // failed to reuse existing term
         else {
@@ -497,13 +501,14 @@ Formula* Skolem::skolemise (Formula* f)
         if(reuse_policy->requiresFormula()) {
           remainingVars = remainingVars->tail();
           remainingSorts = remainingSorts ? remainingSorts->tail() : nullptr;
-          if(VList::isNonEmpty(remainingVars))
+          if(VList::isNonEmpty(remainingVars)) {
             reuse = new QuantifiedFormula(
               Connective::EXISTS,
               remainingVars,
               remainingSorts,
-              SubstHelper::apply(f->qarg(), _subst)
+              SubstHelper::apply(reuse->qarg(), _subst)
             );
+          }
         }
 
         if (env.options->showSkolemisations()) {
