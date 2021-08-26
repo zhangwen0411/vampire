@@ -25,8 +25,10 @@
 #include "Kernel/TermIterators.hpp"
 #include "Kernel/FormulaVarIterator.hpp"
 #include "Shell/Flattening.hpp"
+#include "Shell/NameReuse.hpp"
 #include "Shell/Skolem.hpp"
 #include "Shell/Options.hpp"
+#include "Shell/Rectify.hpp"
 #include "Shell/SymbolOccurrenceReplacement.hpp"
 #include "Shell/SymbolDefinitionInlining.hpp"
 #include "Shell/Statistics.hpp"
@@ -1077,15 +1079,41 @@ void NewCNF::skolemise(QuantifiedFormula* g, BindingList*& bindings, BindingList
     if (!_skolemsByFreeVars.find(unboundFreeVars, processedBindings) || !_foolSkolemsByFreeVars.find(unboundFreeVars, processedFoolBindings)) {
       // second level cache miss, let's do the actual skolemisation
 
+      NameReuse *reuse_policy = NameReuse::skolemInstance();
+      Substitution subst;
+      Formula *reuse = g;
+      if(reuse_policy->requiresFormula()) {
+        BindingList::Iterator bit(bindings);
+        while (bit.hasNext()) {
+          Binding b = bit.next();
+          subst.bind(b.first, b.second);
+        }
+      }
+      VList *remainingVars = reuse->vars();
+      SList *remainingSorts = reuse->sorts();
+
       processedBindings = nullptr;
       processedFoolBindings = nullptr;
 
       VList::Iterator vs(g->vars());
       while (vs.hasNext()) {
         unsigned var = vs.next();
-        Term* skolem = createSkolemTerm(var, unboundFreeVars);
 
-        env.statistics->skolemFunctions++;
+        // rectify formula if reuse policy requires it
+        if(reuse_policy->requiresRectification()) {
+          FormulaUnit *copy =
+            new FormulaUnit(reuse, Inference(FromInput(UnitInputType::AXIOM)));
+          FormulaUnit *rectified = Rectify::rectify(copy);
+          reuse = rectified->formula();
+        }
+
+        // attempt to reuse a skolem, or create a new one
+        Term* skolem = reuse_policy->get(reuse);
+        if(!skolem) {
+          skolem = createSkolemTerm(var, unboundFreeVars);
+          env.statistics->skolemFunctions++;
+          reuse_policy->reuse(reuse, skolem);
+        }
 
         Binding binding(var, skolem);
         if (skolem->isSpecial()) {
@@ -1093,6 +1121,28 @@ void NewCNF::skolemise(QuantifiedFormula* g, BindingList*& bindings, BindingList
         } else {
           BindingList::push(binding, processedBindings); // this cell will get destroyed when we clear the cache
         }
+
+        // if we're re-using Skolems based on formulae,
+        // we need to explicitly construct them: e.g. for ?[X, Y, Z]: F:
+        // ?[X, Y, Z]: F,
+        // ?[Y, Z]: F[X->sK0],
+        // ?[Z]: F[X->sK0, Y->sK1],
+        // but not F[X->sK0, Y->sK1, Z->sK2], since this doesn't need a Skolem term
+        if(reuse_policy->requiresFormula()) {
+          remainingVars = remainingVars->tail();
+          remainingSorts = remainingSorts ? remainingSorts->tail() : nullptr;
+          if(VList::isNonEmpty(remainingVars)) {
+            subst.bind(var, skolem);
+            reuse = new QuantifiedFormula(
+              Connective::EXISTS,
+              remainingVars,
+              remainingSorts,
+              SubstHelper::apply(reuse->qarg(), subst)
+            );
+          }
+        }
+
+
       }
 
       // store the results in the caches
