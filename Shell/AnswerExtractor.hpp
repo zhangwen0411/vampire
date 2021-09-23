@@ -69,7 +69,7 @@ public:
   void print();
 
 private:
-  Literal* getAnswerLiteral(Formula::VarList* vars,Formula* f);
+  Literal* getAnswerLiteral(VList* vars,Formula* f);
   Unit* tryAddingAnswerLiteral(Unit* unit);
 
   Clause* getResolverClause(unsigned pred);
