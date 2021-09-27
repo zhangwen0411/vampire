@@ -20,6 +20,8 @@
 #include "Kernel/Signature.hpp"
 #include "Kernel/Term.hpp"
 
+#include "SaturationAlgorithm.hpp"
+
 #include "SymElOutput.hpp"
 
 namespace Saturation
@@ -118,7 +120,7 @@ void SymElOutput::onSymbolElimination(Color eliminated,
   CALL("SymElOutput::onSymbolElimination");
   ASS_EQ(c->color(),COLOR_TRANSPARENT);
 
-  if(!c->skip() && c->noSplits()) {
+  if(!c->skip()) {
     if(!_symElColors.insert(c,eliminated)) {
       //the clause was already reported for symbol elimination
       return;
@@ -156,7 +158,7 @@ void SymElOutput::outputSymbolElimination(Color eliminated, Clause* c)
     cname = "inv"+Int::toString(_symElNextClauseNumber);
   }
 
-  _printer.printAsClaim(cname, c);
+  _printer.printAsClaim(cname, c, _sa->getSplitter());
 
   //BDD::instance()->allowDefinitionOutput(true);
   _symElNextClauseNumber++;

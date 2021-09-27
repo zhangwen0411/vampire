@@ -37,6 +37,8 @@
 
 #include "Forwards.hpp"
 
+#include "Saturation/Splitter.hpp"
+
 namespace Shell
 {
 TPTPPrinter::TPTPPrinter(ostream* tgtStream)
@@ -64,18 +66,19 @@ void TPTPPrinter::print(Unit* u)
  * Print on the desired output the Unit with the specified name
  * @param name
  * @param u
+ * @param splitter insert split definitions inline if not nullptr
  */
-void TPTPPrinter::printAsClaim(vstring name, Unit* u)
+void TPTPPrinter::printAsClaim(vstring name, Unit* u, Saturation::Splitter *splitter)
 {
   CALL("TPTPPrinter::printAsClaim");
-  printWithRole(name, "claim", u);
+  printWithRole(name, "claim", u, true, splitter);
 }
 
-void TPTPPrinter::printWithRole(vstring name, vstring role, Unit* u, bool includeSplitLevels)
+void TPTPPrinter::printWithRole(vstring name, vstring role, Unit* u, bool includeSplitLevels, Saturation::Splitter *splitter)
 {
   CALL("TPTPPrinter::printWithRole");
 
-  vstring body = getBodyStr(u, includeSplitLevels);
+  vstring body = getBodyStr(u, includeSplitLevels, splitter);
 
   beginOutput();
   ensureHeadersPrinted(u);
@@ -87,9 +90,10 @@ void TPTPPrinter::printWithRole(vstring name, vstring role, Unit* u, bool includ
  * Return as a vstring the body of the Unit u
  * @param u
  * @param includeSplitLevels
+ * @param splitter insert split definitions inline if not nullptr
  * @return the body vstring
  */
-vstring TPTPPrinter::getBodyStr(Unit* u, bool includeSplitLevels)
+vstring TPTPPrinter::getBodyStr(Unit* u, bool includeSplitLevels, Saturation::Splitter *splitter)
 {
   CALL("TPTPPrinter::getBodyStr");
 
@@ -142,7 +146,17 @@ vstring TPTPPrinter::getBodyStr(Unit* u, bool includeSplitLevels)
       SplitSet::Iterator sit(*cl->splits());
       while(sit.hasNext()) {
         SplitLevel split = sit.next();
-        res << " | " << "$splitLevel" << split;
+        res << " | ";
+        if(!splitter) {
+          res << "$splitLevel" << split;
+        }
+        else {
+          bool negate = splitter->getLiteralFromName(split).polarity();
+          if(negate)
+            res << "~";
+          Clause *compCl = splitter->getComponentClause(split);
+          res << "(" << getBodyStr(compCl, false, nullptr) << ")";
+        }
       }
     }
   }
@@ -310,7 +324,7 @@ void TPTPPrinter::ensureHeadersPrinted(Unit* u)
   unsigned funs = env.signature->functions();
   for(unsigned i=0; i<funs; i++) {
     SymbolType st = SymbolType::FUNC;
-    if(env.signature->isTypeConOrSup(i)){ st = SymbolType::TYPE_CON; }
+    if(env.signature->isTypeConOrSup(i)){ continue; /*st = SymbolType::TYPE_CON; */ }
     outputSymbolTypeDefinitions(i, st);
   }
   unsigned preds = env.signature->predicates();

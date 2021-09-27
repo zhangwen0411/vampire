@@ -37,8 +37,8 @@ public:
   enum SymbolType{FUNC, PRED, TYPE_CON};
 
   void print(Unit* u);
-  void printAsClaim(vstring name, Unit* u);
-  void printWithRole(vstring name, vstring role, Unit* u, bool includeSplitLevels = true);
+  void printAsClaim(vstring name, Unit* u, Saturation::Splitter *splitter = nullptr);
+  void printWithRole(vstring name, vstring role, Unit* u, bool includeSplitLevels = true, Saturation::Splitter *splitter = nullptr);
 
   static vstring toString(const Unit*);
   static vstring toString(const Formula*);
@@ -47,7 +47,7 @@ public:
 
 private:
 
-  vstring getBodyStr(Unit* u, bool includeSplitLevels);
+  vstring getBodyStr(Unit* u, bool includeSplitLevels, Saturation::Splitter *splitter = nullptr);
 
   void ensureHeadersPrinted(Unit* u);
   void outputSymbolTypeDefinitions(unsigned symNumber, SymbolType symType);
