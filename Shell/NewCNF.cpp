@@ -1270,11 +1270,24 @@ Literal* NewCNF::createNamingLiteral(Formula* f, VList* free)
 {
   CALL("NewCNF::createNamingLiteral");
 
+  NameReuse *reuse_policy = NameReuse::definitionInstance();
+  Formula *normalised = reuse_policy->normalise(f);
+  unsigned reused;
+  bool reuse = reuse_policy->get(normalised, reused);
+
   unsigned length = VList::length(free);
-  unsigned pred = env.signature->addNamePredicate(length);
+  unsigned pred;
+  if(reuse) {
+    pred = reused;
+  } 
+  else {
+    pred = env.signature->addNamePredicate(length);
+    reuse_policy->put(normalised, pred);
+  }
+
   Signature::Symbol* predSym = env.signature->getPredicate(pred);
 
-  if (env.colorUsed) {
+  if (!reuse && env.colorUsed) {
     Color fc = f->getColor();
     if (fc != COLOR_TRANSPARENT) {
       predSym->addColor(fc);
@@ -1298,7 +1311,8 @@ Literal* NewCNF::createNamingLiteral(Formula* f, VList* free)
     predArgs.push(TermList(uvar, false));
   }
 
-  predSym->setType(OperatorType::getPredicateType(length, domainSorts.begin()));
+  if(!reuse)
+    predSym->setType(OperatorType::getPredicateType(length, domainSorts.begin()));
 
   return Literal::create(pred, length, true, false, predArgs.begin());
 }

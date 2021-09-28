@@ -59,8 +59,15 @@ Formula *ExactNameReuse::normalise(Formula *f)
 bool ExactNameReuse::get(Formula *normalised, unsigned &symbol)
 {
   CALL("ExactNameReuse::get");
-  //std::cout << "get: " << normalised->toString() << std::endl;
   return _map.find(normalised->toString(), symbol);
+  /*
+  std::cout << "get: " << normalised->toString() << std::endl;
+  if(_map.find(normalised->toString(), symbol)) {
+    std::cout << "XXX: " << normalised->toString() << std::endl;
+    return true;
+  }
+  return false;
+  */
 }
 
 void ExactNameReuse::put(Formula *normalised, unsigned symbol)

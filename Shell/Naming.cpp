@@ -1116,9 +1116,6 @@ Literal* Naming::getDefinitionLiteral(Formula* f, VList* freeVars) {
   Formula *normalised = reuse_policy->normalise(f);
   unsigned reused;
   bool reuse = reuse_policy->get(normalised, reused);
-  if(reuse) {
-    std::cout << "XXX: " << normalised << std::endl;
-  }
 
   unsigned arity = VList::length(freeVars);
 
