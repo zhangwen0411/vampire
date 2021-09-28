@@ -1099,20 +1099,13 @@ void NewCNF::skolemise(QuantifiedFormula* g, BindingList*& bindings, BindingList
       while (vs.hasNext()) {
         unsigned var = vs.next();
 
-        // rectify formula if reuse policy requires it
-        if(reuse_policy->requiresRectification()) {
-          FormulaUnit *copy =
-            new FormulaUnit(reuse, Inference(FromInput(UnitInputType::AXIOM)));
-          FormulaUnit *rectified = Rectify::rectify(copy);
-          reuse = rectified->formula();
-        }
-
+        Formula *normalised = reuse_policy->normalise(reuse);
         // attempt to reuse a skolem, or create a new one
-        Term* skolem = reuse_policy->get(reuse);
+        Term* skolem = reuse_policy->get(normalised);
         if(!skolem) {
           skolem = createSkolemTerm(var, unboundFreeVars);
           env.statistics->skolemFunctions++;
-          reuse_policy->reuse(reuse, skolem);
+          reuse_policy->put(normalised, skolem);
         }
 
         Binding binding(var, skolem);
@@ -1141,8 +1134,6 @@ void NewCNF::skolemise(QuantifiedFormula* g, BindingList*& bindings, BindingList
             );
           }
         }
-
-
       }
 
       // store the results in the caches

@@ -32,17 +32,17 @@ public:
   // skolems
   static NameReuse *skolemInstance();
 
-  // try and reuse a definition for `f`: nullptr if not seen before or reuse failed
-  virtual Term *get(Formula *f) = 0;
+  // normalise `f` in some way to use as a key: saves recomputing it later
+  virtual Formula *normalise(Formula *f) = 0;
 
-  // remember that we've used a definition term `d` for `f`
-  virtual void reuse(Formula *f, Term *d) = 0;
+  // try and reuse a definition for `normalised`: nullptr if not seen before
+  virtual Term *get(Formula *normalised) = 0;
+
+  // remember that we've used a definition term `d` for `normalised`
+  virtual void put(Formula *normalised, Term *d) = 0;
 
   // do we use formulae at all? - only false for NoNameReuse
   virtual bool requiresFormula() { return true; };
-
-  // do formulae need rectifying to be re-used?
-  virtual bool requiresRectification() = 0;
 };
 
 /**
@@ -52,10 +52,10 @@ class NoNameReuse : public NameReuse {
 public:
   CLASS_NAME(NoNameReuse)
   USE_ALLOCATOR(NoNameReuse)
-  inline Term *get(Formula *f) override { return nullptr; }
-  inline void reuse(Formula *f, Term *d) override {}
+  inline Formula *normalise(Formula *f) override { return nullptr; }
+  inline Term *get(Formula *normalised) override { return nullptr; }
+  inline void put(Formula *normalised, Term *d) override {}
   inline bool requiresFormula() override { return false; }
-  inline bool requiresRectification() override { return false; }
 };
 
 /**
@@ -65,9 +65,9 @@ class ExactNameReuse : public NameReuse {
 public:
   CLASS_NAME(ExactNameReuse)
   USE_ALLOCATOR(ExactNameReuse)
+  Formula *normalise(Formula *f) override;
   Term *get(Formula *f) override;
-  void reuse(Formula *f, Term *d) override;
-  inline bool requiresRectification() override { return true; }
+  void put(Formula *f, Term *d) override;
 
 private:
   DHMap<vstring, Term *> _map;

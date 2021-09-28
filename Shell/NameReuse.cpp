@@ -14,14 +14,17 @@
 
 #include "NameReuse.hpp"
 #include "Kernel/Formula.hpp"
+#include "Kernel/FormulaUnit.hpp"
 #include "Lib/Environment.hpp"
 #include "Shell/Options.hpp"
+#include "Shell/Rectify.hpp"
 #include <iostream>
 
 namespace Shell {
 
 static NameReuse *make_policy(Options::NameReuse option)
 {
+  CALL("NameReuse::make_policy");
   switch (option) {
     case Options::NameReuse::NONE:
       return new NoNameReuse();
@@ -32,18 +35,30 @@ static NameReuse *make_policy(Options::NameReuse option)
 
 NameReuse *NameReuse::skolemInstance()
 {
+  CALL("NameReuse::skolemInstance");
   static NameReuse *instance = make_policy(env.options->skolemReuse());
   return instance;
 }
 
-Term *ExactNameReuse::get(Formula *f)
+Formula *ExactNameReuse::normalise(Formula *f)
 {
-  return _map.get(f->toString(), nullptr);
+  CALL("ExactNameReuse::normalise");
+  FormulaUnit *copy =
+      new FormulaUnit(f, Inference(FromInput(UnitInputType::AXIOM)));
+  FormulaUnit *rectified = Rectify::rectify(copy);
+  return rectified->formula();
 }
 
-void ExactNameReuse::reuse(Formula *f, Term *d)
+Term *ExactNameReuse::get(Formula *normalised)
 {
-  _map.insert(f->toString(), d);
+  CALL("ExactNameReuse::get");
+  return _map.get(normalised->toString(), nullptr);
+}
+
+void ExactNameReuse::put(Formula *normalised, Term *d)
+{
+  CALL("ExactNameReuse::put");
+  _map.insert(normalised->toString(), d);
 }
 
 }; // namespace Shell

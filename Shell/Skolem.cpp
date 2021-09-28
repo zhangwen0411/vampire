@@ -448,14 +448,8 @@ Formula* Skolem::skolemise (Formula* f)
         SortHelper::normaliseSort(typeVars, rangeSort);
         Term* skolemTerm;
 
-        // rectify formula if reuse policy requires it
-        if(reuse_policy->requiresRectification()) {
-          FormulaUnit *copy =
-            new FormulaUnit(reuse, Inference(FromInput(UnitInputType::AXIOM)));
-          FormulaUnit *rectified = Rectify::rectify(copy);
-          reuse = rectified->formula();
-        }
-        skolemTerm = reuse_policy->get(reuse);
+        Formula *normalised = reuse_policy->normalise(reuse);
+        skolemTerm = reuse_policy->get(normalised);
         // can reuse an existing Skolem
         if(skolemTerm) {
           // reused skolem might e.g. be used in the goal this time, so do this regardless of reuse
@@ -485,7 +479,7 @@ Formula* Skolem::skolemise (Formula* f)
             TermList head = TermList(Term::create(fun, typeVars.size(), typeVars.begin()));
             skolemTerm = ApplicativeHelper::createAppTerm(skSymSort, head, termVars).term();
           }
-          reuse_policy->reuse(reuse, skolemTerm);
+          reuse_policy->put(normalised, skolemTerm);
         }
 
         env.statistics->skolemFunctions++;
