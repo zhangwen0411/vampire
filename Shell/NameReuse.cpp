@@ -73,7 +73,7 @@ bool ExactNameReuse::get(Formula *normalised, unsigned &symbol)
 void ExactNameReuse::put(Formula *normalised, unsigned symbol)
 {
   CALL("ExactNameReuse::put");
-  //std::cout << "put: " << normalised->toString() << std::endl;
+  //std::cout << "put: " << env.signature->functionName(symbol) << " for " << normalised->toString() << std::endl;
   _map.insert(normalised->toString(), symbol);
 }
 

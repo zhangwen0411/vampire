@@ -1101,16 +1101,19 @@ void NewCNF::skolemise(QuantifiedFormula* g, BindingList*& bindings, BindingList
 
       NameReuse *reuse_policy = NameReuse::skolemInstance();
       Substitution subst;
-      Formula *reuse_formula = g;
+      Formula *reuse_formula = nullptr;
+      VList *remainingVars = nullptr;
+      SList *remainingSorts = nullptr;
       if(reuse_policy->requiresFormula()) {
         BindingList::Iterator bit(bindings);
         while (bit.hasNext()) {
           Binding b = bit.next();
           subst.bind(b.first, b.second);
         }
+        reuse_formula = SubstHelper::apply(g, subst);
+        remainingVars = reuse_formula->vars();
+        remainingSorts = reuse_formula->sorts();
       }
-      VList *remainingVars = reuse_formula->vars();
-      SList *remainingSorts = reuse_formula->sorts();
 
       processedBindings = nullptr;
       processedFoolBindings = nullptr;
