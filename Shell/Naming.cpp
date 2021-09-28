@@ -32,6 +32,7 @@
 
 #include "Shell/Statistics.hpp"
 #include "Shell/Options.hpp"
+#include "Shell/NameReuse.hpp"
 
 #include "Indexing/TermSharing.hpp"
 
@@ -1111,6 +1112,14 @@ bool Naming::canBeInDefinition(Formula* f, Where where) {
 Literal* Naming::getDefinitionLiteral(Formula* f, VList* freeVars) {
   CALL("Naming::getDefinitionLiteral");
 
+  NameReuse *reuse_policy = NameReuse::definitionInstance();
+  Formula *normalised = reuse_policy->normalise(f);
+  unsigned reused;
+  bool reuse = reuse_policy->get(normalised, reused);
+  if(reuse) {
+    std::cout << "XXX: " << normalised << std::endl;
+  }
+
   unsigned arity = VList::length(freeVars);
 
   static TermStack termVarSorts;
@@ -1146,29 +1155,43 @@ Literal* Naming::getDefinitionLiteral(Formula* f, VList* freeVars) {
   }
 
   if(!_appify){
-    unsigned pred = env.signature->addNamePredicate(arity);
-    Signature::Symbol* predSym = env.signature->getPredicate(pred);
-
-    if (env.colorUsed) {
-      Color fc = f->getColor();
-      if (fc != COLOR_TRANSPARENT) {
-        predSym->addColor(fc);
-      }
-      if (f->getSkip()) {
-        predSym->markSkip();
-      }
+    unsigned pred;
+    if(reuse) {
+      pred = reused;
     }
+    else {
+      pred = env.signature->addNamePredicate(arity);
+      reuse_policy->put(normalised, pred);
+      Signature::Symbol* predSym = env.signature->getPredicate(pred);
 
-    predSym->setType(OperatorType::getPredicateType(arity - typeArgArity, termVarSorts.begin(), typeArgArity));
+      if (!reuse && env.colorUsed) {
+        Color fc = f->getColor();
+        if (fc != COLOR_TRANSPARENT) {
+          predSym->addColor(fc);
+        }
+        if (f->getSkip()) {
+          predSym->markSkip();
+        }
+      }
+
+      predSym->setType(OperatorType::getPredicateType(arity - typeArgArity, termVarSorts.begin(), typeArgArity));
+    }
     return Literal::create(pred, arity, true, false, allVars.begin());
   } else {
-    unsigned fun = env.signature->addNameFunction(typeVars.size());
     TermList sort = Term::arrowSort(termVarSorts, Term::boolSort());
-    Signature::Symbol* sym = env.signature->getFunction(fun);
-    sym->setType(OperatorType::getConstantsType(sort, typeArgArity)); 
+    unsigned fun;
+    if(reuse) {
+      fun = reused;
+    }
+    else {
+      fun = env.signature->addNameFunction(typeVars.size());
+      reuse_policy->put(normalised, fun);
+      Signature::Symbol* sym = env.signature->getFunction(fun);
+      sym->setType(OperatorType::getConstantsType(sort, typeArgArity));
+    }
     TermList head = TermList(Term::create(fun, typeVars.size(), typeVars.begin()));
     TermList t = ApplicativeHelper::createAppTerm(sort, head, termVars);
-    return  Literal::createEquality(true, TermList(t), TermList(Term::foolTrue()), Term::boolSort());  
+    return Literal::createEquality(true, TermList(t), TermList(Term::foolTrue()), Term::boolSort());  
   }
 }
 

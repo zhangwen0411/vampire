@@ -2139,6 +2139,7 @@ public:
 
   FunctionDefinitionElimination functionDefinitionElimination() const { return _functionDefinitionElimination.actualValue; }
   NameReuse skolemReuse() const { return _skolemReuse.actualValue; }
+  NameReuse definitionReuse() const { return _definitionReuse.actualValue; }
   bool outputAxiomNames() const { return _outputAxiomNames.actualValue; }
   void setOutputAxiomNames(bool newVal) { _outputAxiomNames.actualValue = newVal; }
   QuestionAnsweringMode questionAnswering() const { return _questionAnswering.actualValue; }
@@ -2434,6 +2435,7 @@ private:
   UnsignedOptionValue _forwardSubsumptionDemodulationMaxMatches;
   ChoiceOptionValue<FunctionDefinitionElimination> _functionDefinitionElimination;
   ChoiceOptionValue<NameReuse> _skolemReuse;
+  ChoiceOptionValue<NameReuse> _definitionReuse;
   
   ChoiceOptionValue<RuleActivity> _generalSplitting;
   BoolOptionValue _globalSubsumption;

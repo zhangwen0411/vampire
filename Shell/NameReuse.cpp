@@ -40,6 +40,13 @@ NameReuse *NameReuse::skolemInstance()
   return instance;
 }
 
+NameReuse *NameReuse::definitionInstance()
+{
+  CALL("NameReuse::definitionInstance");
+  static NameReuse *instance = make_policy(env.options->definitionReuse());
+  return instance;
+}
+
 Formula *ExactNameReuse::normalise(Formula *f)
 {
   CALL("ExactNameReuse::normalise");
@@ -49,16 +56,18 @@ Formula *ExactNameReuse::normalise(Formula *f)
   return rectified->formula();
 }
 
-Term *ExactNameReuse::get(Formula *normalised)
+bool ExactNameReuse::get(Formula *normalised, unsigned &symbol)
 {
   CALL("ExactNameReuse::get");
-  return _map.get(normalised->toString(), nullptr);
+  //std::cout << "get: " << normalised->toString() << std::endl;
+  return _map.find(normalised->toString(), symbol);
 }
 
-void ExactNameReuse::put(Formula *normalised, Term *d)
+void ExactNameReuse::put(Formula *normalised, unsigned symbol)
 {
   CALL("ExactNameReuse::put");
-  _map.insert(normalised->toString(), d);
+  //std::cout << "put: " << normalised->toString() << std::endl;
+  _map.insert(normalised->toString(), symbol);
 }
 
 }; // namespace Shell

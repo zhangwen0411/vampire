@@ -431,7 +431,7 @@ Formula* Skolem::skolemise (Formula* f)
       SortHelper::normaliseArgSorts(typeVars, termVarSorts);
 
       VList::Iterator vs(f->vars());
-      Formula *reuse = before;
+      Formula *reuse_formula = before;
       VList *remainingVars = before->vars();
       SList *remainingSorts = before->sorts();
       NameReuse *reuse_policy = NameReuse::skolemInstance();
@@ -448,42 +448,41 @@ Formula* Skolem::skolemise (Formula* f)
         SortHelper::normaliseSort(typeVars, rangeSort);
         Term* skolemTerm;
 
-        Formula *normalised = reuse_policy->normalise(reuse);
-        skolemTerm = reuse_policy->get(normalised);
-        // can reuse an existing Skolem
-        if(skolemTerm) {
-          // reused skolem might e.g. be used in the goal this time, so do this regardless of reuse
-          if(_appify)
-            _introducedSkolemFuns.push(
-              ApplicativeHelper::getHead(skolemTerm).term()->functor()
-            );
-          else
-            _introducedSkolemFuns.push(skolemTerm->functor());
-        }
-        // failed to reuse existing term
-        else {
-          if(!_appify){
-            //Not the higher-order case. Create the term
-            //sk(typevars, termvars).
-            if(!skolemTerm) {
-              unsigned fun = addSkolemFunction(arity, termVarSorts.begin(), rangeSort, v, typeVars.size());
-              _introducedSkolemFuns.push(fun);
-              skolemTerm = Term::create(fun, arity, allVars.begin());
-            }
-          } else {
-            //The higher-order case. Create the term
-            //sk(typevars) @ termvar_1 @ termvar_2 @ ... @ termvar_n
-            TermList skSymSort = Term::arrowSort(termVarSorts, rangeSort);
-            unsigned fun = addSkolemFunction(typeVars.size(), 0, skSymSort, v, typeVars.size());
-            _introducedSkolemFuns.push(fun);
-            TermList head = TermList(Term::create(fun, typeVars.size(), typeVars.begin()));
-            skolemTerm = ApplicativeHelper::createAppTerm(skSymSort, head, termVars).term();
+        Formula *normalised = reuse_policy->normalise(reuse_formula);
+        unsigned reused;
+        bool reuse = reuse_policy->get(normalised, reused);
+        if(!_appify){
+          //Not the higher-order case. Create the term
+          //sk(typevars, termvars).
+          unsigned fun;
+          if(reuse) {
+            fun = reused;
           }
-          reuse_policy->put(normalised, skolemTerm);
+          else {
+            fun = addSkolemFunction(arity, termVarSorts.begin(), rangeSort, v, typeVars.size());
+            env.statistics->skolemFunctions++;
+            reuse_policy->put(normalised, fun);
+          }
+          // might be e.g. used in goal when reused, so do this regardless
+          _introducedSkolemFuns.push(fun);
+          skolemTerm = Term::create(fun, arity, allVars.begin());
+        } else {
+          //The higher-order case. Create the term
+          //sk(typevars) @ termvar_1 @ termvar_2 @ ... @ termvar_n
+          TermList skSymSort = Term::arrowSort(termVarSorts, rangeSort);
+          unsigned fun;
+          if(reuse) {
+            fun = reuse;
+          }
+          else {
+            fun = addSkolemFunction(typeVars.size(), 0, skSymSort, v, typeVars.size());
+            env.statistics->skolemFunctions++;
+            reuse_policy->put(normalised, fun);
+          }
+          _introducedSkolemFuns.push(fun);
+          TermList head = TermList(Term::create(fun, typeVars.size(), typeVars.begin()));
+          skolemTerm = ApplicativeHelper::createAppTerm(skSymSort, head, termVars).term();
         }
-
-        env.statistics->skolemFunctions++;
-
         _subst.bind(v,skolemTerm);
 
         // if we're re-using Skolems based on formulae,
@@ -496,11 +495,11 @@ Formula* Skolem::skolemise (Formula* f)
           remainingVars = remainingVars->tail();
           remainingSorts = remainingSorts ? remainingSorts->tail() : nullptr;
           if(VList::isNonEmpty(remainingVars)) {
-            reuse = new QuantifiedFormula(
+            reuse_formula = new QuantifiedFormula(
               Connective::EXISTS,
               remainingVars,
               remainingSorts,
-              SubstHelper::apply(reuse->qarg(), _subst)
+              SubstHelper::apply(reuse_formula->qarg(), _subst)
             );
           }
         }

@@ -31,17 +31,22 @@ public:
   // singleton: look at env.options and return a suitable policy for...
   // skolems
   static NameReuse *skolemInstance();
+  // definitions
+  static NameReuse *definitionInstance();
 
   // normalise `f` in some way to use as a key: saves recomputing it later
   virtual Formula *normalise(Formula *f) = 0;
 
-  // try and reuse a definition for `normalised`: nullptr if not seen before
-  virtual Term *get(Formula *normalised) = 0;
+  // try and reuse a symbol for `normalised`
+  // false if not seen before
+  // true (and symbol filled out) if we have
+  virtual bool get(Formula *normalised, unsigned &symbol) = 0;
 
-  // remember that we've used a definition term `d` for `normalised`
-  virtual void put(Formula *normalised, Term *d) = 0;
+  // remember that we've used a symbol to stand for `normalised`
+  virtual void put(Formula *normalised, unsigned symbol) = 0;
 
   // do we use formulae at all? - only false for NoNameReuse
+  // allows skipping work sometimes
   virtual bool requiresFormula() { return true; };
 };
 
@@ -53,8 +58,8 @@ public:
   CLASS_NAME(NoNameReuse)
   USE_ALLOCATOR(NoNameReuse)
   inline Formula *normalise(Formula *f) override { return nullptr; }
-  inline Term *get(Formula *normalised) override { return nullptr; }
-  inline void put(Formula *normalised, Term *d) override {}
+  inline bool get(Formula *normalised, unsigned &symbol) override { return false; }
+  inline void put(Formula *normalised, unsigned symbol) override {}
   inline bool requiresFormula() override { return false; }
 };
 
@@ -66,11 +71,11 @@ public:
   CLASS_NAME(ExactNameReuse)
   USE_ALLOCATOR(ExactNameReuse)
   Formula *normalise(Formula *f) override;
-  Term *get(Formula *f) override;
-  void put(Formula *f, Term *d) override;
+  bool get(Formula *f, unsigned &symbol) override;
+  void put(Formula *f, unsigned symbol) override;
 
 private:
-  DHMap<vstring, Term *> _map;
+  DHMap<vstring, unsigned> _map;
 };
 
 } // namespace Shell

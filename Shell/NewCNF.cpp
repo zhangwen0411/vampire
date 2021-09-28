@@ -980,7 +980,7 @@ void NewCNF::ensureHavingVarSorts()
   }
 }
 
-Term* NewCNF::createSkolemTerm(unsigned var, VarSet* free)
+Term* NewCNF::createSkolemTerm(unsigned var, VarSet* free, Formula *reuse_formula)
 {
   CALL("NewCNF::createSkolemTerm");
 
@@ -1000,16 +1000,36 @@ Term* NewCNF::createSkolemTerm(unsigned var, VarSet* free)
     fnArgs.push(TermList(uvar, false));
   }
 
+  NameReuse *reuse_policy = NameReuse::skolemInstance();
+  Formula *normalised = reuse_policy->normalise(reuse_formula);
+  unsigned reused;
+  bool reuse = reuse_policy->get(normalised, reused);
   Term* res;
   bool isPredicate = (rangeSort == Term::boolSort());
   if (isPredicate) {
-    unsigned pred = Skolem::addSkolemPredicate(arity, domainSorts.begin(), var);
+    unsigned pred;
+    if(reuse) {
+      pred = reused;
+    }
+    else {
+      pred = Skolem::addSkolemPredicate(arity, domainSorts.begin(), var);
+      reuse_policy->put(normalised, pred);
+      env.statistics->skolemFunctions++;
+    }
     if(_beingClausified->derivedFromGoal()){
       env.signature->getPredicate(pred)->markInGoal();
     }
     res = Term::createFormula(new AtomicFormula(Literal::create(pred, arity, true, false, fnArgs.begin())));
   } else {
-    unsigned fun = Skolem::addSkolemFunction(arity, domainSorts.begin(), rangeSort, var);
+    unsigned fun;
+    if(reuse) {
+      fun = reused;
+    }
+    else {
+      fun = Skolem::addSkolemFunction(arity, domainSorts.begin(), rangeSort, var);
+      reuse_policy->put(normalised, fun);
+      env.statistics->skolemFunctions++;
+    }
     if(_beingClausified->derivedFromGoal()){
       env.signature->getFunction(fun)->markInGoal();
     }
@@ -1081,7 +1101,7 @@ void NewCNF::skolemise(QuantifiedFormula* g, BindingList*& bindings, BindingList
 
       NameReuse *reuse_policy = NameReuse::skolemInstance();
       Substitution subst;
-      Formula *reuse = g;
+      Formula *reuse_formula = g;
       if(reuse_policy->requiresFormula()) {
         BindingList::Iterator bit(bindings);
         while (bit.hasNext()) {
@@ -1089,8 +1109,8 @@ void NewCNF::skolemise(QuantifiedFormula* g, BindingList*& bindings, BindingList
           subst.bind(b.first, b.second);
         }
       }
-      VList *remainingVars = reuse->vars();
-      SList *remainingSorts = reuse->sorts();
+      VList *remainingVars = reuse_formula->vars();
+      SList *remainingSorts = reuse_formula->sorts();
 
       processedBindings = nullptr;
       processedFoolBindings = nullptr;
@@ -1099,15 +1119,7 @@ void NewCNF::skolemise(QuantifiedFormula* g, BindingList*& bindings, BindingList
       while (vs.hasNext()) {
         unsigned var = vs.next();
 
-        Formula *normalised = reuse_policy->normalise(reuse);
-        // attempt to reuse a skolem, or create a new one
-        Term* skolem = reuse_policy->get(normalised);
-        if(!skolem) {
-          skolem = createSkolemTerm(var, unboundFreeVars);
-          env.statistics->skolemFunctions++;
-          reuse_policy->put(normalised, skolem);
-        }
-
+        Term *skolem = createSkolemTerm(var, unboundFreeVars, reuse_formula);
         Binding binding(var, skolem);
         if (skolem->isSpecial()) {
           BindingList::push(binding, processedFoolBindings); // this cell will get destroyed when we clear the cache
@@ -1126,11 +1138,11 @@ void NewCNF::skolemise(QuantifiedFormula* g, BindingList*& bindings, BindingList
           remainingSorts = remainingSorts ? remainingSorts->tail() : nullptr;
           if(VList::isNonEmpty(remainingVars)) {
             subst.bind(var, skolem);
-            reuse = new QuantifiedFormula(
+            reuse_formula = new QuantifiedFormula(
               Connective::EXISTS,
               remainingVars,
               remainingSorts,
-              SubstHelper::apply(reuse->qarg(), subst)
+              SubstHelper::apply(reuse_formula->qarg(), subst)
             );
           }
         }
